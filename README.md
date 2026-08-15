@@ -30,6 +30,12 @@ Install the project in editable mode:
 python -m pip install -e .
 ```
 
+To include test dependencies:
+
+```powershell
+python -m pip install -e ".[test]"
+```
+
 ## Usage
 
 Run the command with the path to a PDF file:
@@ -46,3 +52,10 @@ python -m studygraph path\to\file.pdf
 
 The extracted text will be printed to the terminal.
 
+## Tests
+
+Run the automated tests with:
+
+```powershell
+python -m pytest
+```
