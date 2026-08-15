@@ -4,7 +4,6 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from studygraph.config import get_database_url
-from studygraph.document_model import Base
 
 _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
@@ -34,7 +33,3 @@ def get_session_factory() -> sessionmaker[Session]:
 def get_session() -> Generator[Session]:
     with get_session_factory() as session:
         yield session
-
-
-def create_database_tables() -> None:
-    Base.metadata.create_all(get_engine())

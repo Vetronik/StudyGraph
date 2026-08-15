@@ -1,0 +1,7 @@
+StudyGraph database migrations.
+
+Run migrations with:
+
+    python -m alembic upgrade head
+
+The database connection is read from the DATABASE_URL environment variable.

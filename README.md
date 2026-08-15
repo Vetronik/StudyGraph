@@ -11,6 +11,7 @@ Current milestone:
 - Upload a PDF through a minimal REST API
 - Return basic PDF information as JSON
 - Store processed documents in PostgreSQL
+- Manage database schema changes with Alembic migrations
 
 No frontend, user accounts, Docker setup, or AI features are included yet.
 
@@ -64,10 +65,10 @@ database connection with an environment variable:
 $env:DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@localhost:5432/studygraph"
 ```
 
-Create the database tables once before starting the API:
+Run database migrations before starting the API:
 
 ```powershell
-python -c "from studygraph.database import create_database_tables; create_database_tables()"
+python -m alembic upgrade head
 ```
 
 Start the local FastAPI server:

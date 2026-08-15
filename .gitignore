@@ -17,6 +17,9 @@ venv/
 .env.*
 !.env.example
 
+# Local agent instructions
+AGENTS.md
+
 # OS and editor files
 .DS_Store
 Thumbs.db
