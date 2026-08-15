@@ -3,7 +3,11 @@ from pathlib import Path
 import pytest
 from pypdf import PdfWriter
 
-from studygraph.pdf_text_extractor import PdfTextExtractionError, extract_text_from_pdf
+from studygraph.pdf_text_extractor import (
+    PdfTextExtractionError,
+    extract_pdf_document,
+    extract_text_from_pdf,
+)
 
 
 def _write_pdf_with_text(pdf_path: Path) -> None:
@@ -82,6 +86,18 @@ def test_extract_text_from_pdf_returns_text_from_valid_pdf(tmp_path: Path) -> No
     extracted_text = extract_text_from_pdf(pdf_path)
 
     assert extracted_text == "StudyGraph extracts text"
+
+
+def test_extract_pdf_document_returns_page_count_from_valid_pdf(
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "lecture.pdf"
+    _write_pdf_with_text(pdf_path)
+
+    document = extract_pdf_document(pdf_path)
+
+    assert document.text == "StudyGraph extracts text"
+    assert document.page_count == 1
 
 
 def test_extract_text_from_pdf_raises_when_pdf_has_no_text(tmp_path: Path) -> None:

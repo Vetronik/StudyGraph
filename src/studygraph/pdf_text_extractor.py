@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -8,7 +9,13 @@ class PdfTextExtractionError(Exception):
     """Raised when text cannot be extracted from a PDF file."""
 
 
-def extract_text_from_pdf(pdf_path: Path) -> str:
+@dataclass(frozen=True)
+class ExtractedPdfDocument:
+    text: str
+    page_count: int
+
+
+def extract_pdf_document(pdf_path: Path) -> ExtractedPdfDocument:
     if not pdf_path.exists():
         raise PdfTextExtractionError(f"File does not exist: {pdf_path}")
 
@@ -24,6 +31,7 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
         raise PdfTextExtractionError(f"Could not read PDF: {error}") from error
 
     page_texts: list[str] = []
+    page_count = len(reader.pages)
 
     for page_number, page in enumerate(reader.pages, start=1):
         try:
@@ -43,5 +51,8 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
             "No text could be extracted. The PDF may contain scanned images only."
         )
 
-    return extracted_text
+    return ExtractedPdfDocument(text=extracted_text, page_count=page_count)
 
+
+def extract_text_from_pdf(pdf_path: Path) -> str:
+    return extract_pdf_document(pdf_path).text
