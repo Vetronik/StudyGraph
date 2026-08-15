@@ -10,8 +10,9 @@ Current milestone:
 - Print the extracted text to the terminal
 - Upload a PDF through a minimal REST API
 - Return basic PDF information as JSON
+- Store processed documents in PostgreSQL
 
-No frontend, database, user accounts, Docker setup, or AI features are included yet.
+No frontend, user accounts, Docker setup, or AI features are included yet.
 
 ## Requirements
 
@@ -56,6 +57,19 @@ The extracted text will be printed to the terminal.
 
 ## API
 
+StudyGraph stores successfully processed documents in PostgreSQL. Configure the
+database connection with an environment variable:
+
+```powershell
+$env:DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@localhost:5432/studygraph"
+```
+
+Create the database tables once before starting the API:
+
+```powershell
+python -c "from studygraph.database import create_database_tables; create_database_tables()"
+```
+
 Start the local FastAPI server:
 
 ```powershell
@@ -69,7 +83,10 @@ http://127.0.0.1:8000/docs
 ```
 
 Use `POST /documents` to upload one PDF file. The response contains the
-filename, page count, character count, and a short text preview.
+document ID, filename, page count, character count, creation time, and a short
+text preview.
+
+Use `GET /documents/{document_id}` to load metadata for a stored document.
 
 ## Tests
 
@@ -77,4 +94,12 @@ Run the automated tests with:
 
 ```powershell
 python -m pytest
+```
+
+Repository integration tests require a dedicated PostgreSQL test database. Set
+`TEST_DATABASE_URL` to run them:
+
+```powershell
+$env:TEST_DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@localhost:5432/studygraph_test"
+python -m pytest -m postgresql
 ```

@@ -1,70 +1,93 @@
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
-from pypdf import PdfWriter
 
-from studygraph.api import app
-
-client = TestClient(app)
-
-
-def _write_pdf_with_text(pdf_path: Path) -> None:
-    text = b"StudyGraph extracts text through the API"
-    content_stream = b"BT /F1 12 Tf 72 720 Td (" + text + b") Tj ET"
-
-    objects = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        (
-            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-            b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>"
-        ),
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-        (
-            b"<< /Length "
-            + str(len(content_stream)).encode("ascii")
-            + b" >>\nstream\n"
-            + content_stream
-            + b"\nendstream"
-        ),
-    ]
-
-    pdf = bytearray(b"%PDF-1.4\n")
-    offsets = []
-
-    for object_number, object_content in enumerate(objects, start=1):
-        offsets.append(len(pdf))
-        pdf.extend(f"{object_number} 0 obj\n".encode("ascii"))
-        pdf.extend(object_content)
-        pdf.extend(b"\nendobj\n")
-
-    xref_offset = len(pdf)
-    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
-    pdf.extend(b"0000000000 65535 f \n")
-
-    for offset in offsets:
-        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
-
-    pdf.extend(
-        (
-            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
-            f"startxref\n{xref_offset}\n%%EOF\n"
-        ).encode("ascii")
-    )
-    pdf_path.write_bytes(pdf)
+from studygraph.api import app, get_document_service
+from studygraph.document_model import Document
+from studygraph.document_service import DocumentService
 
 
-def _write_pdf_without_text(pdf_path: Path) -> None:
-    writer = PdfWriter()
-    writer.add_blank_page(width=612, height=792)
+class InMemoryDocumentRepository:
+    def __init__(self) -> None:
+        self._documents: dict[int, Document] = {}
+        self._next_id = 1
 
-    with pdf_path.open("wb") as pdf_file:
-        writer.write(pdf_file)
+    def add(self, document: Document) -> Document:
+        document.id = self._next_id
+        document.created_at = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
+        self._documents[document.id] = document
+        self._next_id += 1
+        return document
+
+    def get_by_id(self, document_id: int) -> Document | None:
+        return self._documents.get(document_id)
+
+    def count(self) -> int:
+        return len(self._documents)
 
 
-def test_create_document_returns_summary_for_valid_pdf(tmp_path: Path) -> None:
+@pytest.fixture
+def document_repository() -> InMemoryDocumentRepository:
+    return InMemoryDocumentRepository()
+
+
+@pytest.fixture
+def client(document_repository: InMemoryDocumentRepository) -> TestClient:
+    def override_document_service() -> DocumentService:
+        return DocumentService(document_repository)
+
+    app.dependency_overrides[get_document_service] = override_document_service
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    app.dependency_overrides.clear()
+
+
+def test_create_document_stores_valid_pdf(
+    client: TestClient,
+    document_repository: InMemoryDocumentRepository,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
     pdf_path = tmp_path / "lecture.pdf"
-    _write_pdf_with_text(pdf_path)
+    write_pdf_with_text(pdf_path, "StudyGraph extracts text through the API")
+
+    response = client.post(
+        "/documents",
+        files={
+            "file": (
+                "lecture.pdf",
+                pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+
+    response_data = response.json()
+
+    assert response.status_code == 200
+    assert response_data == {
+        "id": 1,
+        "filename": "lecture.pdf",
+        "page_count": 1,
+        "character_count": 40,
+        "text_preview": "StudyGraph extracts text through the API",
+        "created_at": "2026-08-15T12:00:00Z",
+    }
+    assert document_repository.count() == 1
+
+
+def test_create_document_returns_generated_id(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(pdf_path, "StudyGraph extracts text through the API")
 
     response = client.post(
         "/documents",
@@ -78,15 +101,49 @@ def test_create_document_returns_summary_for_valid_pdf(tmp_path: Path) -> None:
     )
 
     assert response.status_code == 200
+    assert isinstance(response.json()["id"], int)
+    assert response.json()["id"] > 0
+
+
+def test_get_document_returns_existing_document(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(pdf_path, "StudyGraph extracts text through the API")
+
+    create_response = client.post(
+        "/documents",
+        files={
+            "file": (
+                "lecture.pdf",
+                pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+    document_id = create_response.json()["id"]
+
+    response = client.get(f"/documents/{document_id}")
+
+    assert response.status_code == 200
+    assert response.json() == create_response.json()
+
+
+def test_get_document_returns_404_for_unknown_id(client: TestClient) -> None:
+    response = client.get("/documents/999")
+
+    assert response.status_code == 404
     assert response.json() == {
-        "filename": "lecture.pdf",
-        "page_count": 1,
-        "character_count": 40,
-        "text_preview": "StudyGraph extracts text through the API",
+        "detail": "Document with id 999 was not found."
     }
 
 
-def test_create_document_rejects_non_pdf_file() -> None:
+def test_create_document_rejects_non_pdf_file(
+    client: TestClient,
+    document_repository: InMemoryDocumentRepository,
+) -> None:
     response = client.post(
         "/documents",
         files={"file": ("notes.txt", b"This is not a PDF.", "text/plain")},
@@ -96,9 +153,13 @@ def test_create_document_rejects_non_pdf_file() -> None:
     assert response.json() == {
         "detail": "Uploaded file must have a .pdf extension."
     }
+    assert document_repository.count() == 0
 
 
-def test_create_document_rejects_invalid_pdf() -> None:
+def test_create_document_rejects_invalid_pdf(
+    client: TestClient,
+    document_repository: InMemoryDocumentRepository,
+) -> None:
     response = client.post(
         "/documents",
         files={
@@ -114,13 +175,17 @@ def test_create_document_rejects_invalid_pdf() -> None:
     assert response.json()["detail"].startswith(
         "Could not process PDF: Could not read PDF:"
     )
+    assert document_repository.count() == 0
 
 
 def test_create_document_rejects_pdf_without_extractable_text(
+    client: TestClient,
+    document_repository: InMemoryDocumentRepository,
     tmp_path: Path,
+    write_pdf_without_text: Callable[[Path], None],
 ) -> None:
     pdf_path = tmp_path / "scanned.pdf"
-    _write_pdf_without_text(pdf_path)
+    write_pdf_without_text(pdf_path)
 
     response = client.post(
         "/documents",
@@ -140,3 +205,4 @@ def test_create_document_rejects_pdf_without_extractable_text(
             "The PDF may contain scanned images only."
         )
     }
+    assert document_repository.count() == 0

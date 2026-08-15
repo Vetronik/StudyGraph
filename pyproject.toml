@@ -11,7 +11,9 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
     "pypdf>=4.0.0",
+    "psycopg[binary]>=3.2.0",
     "python-multipart>=0.0.9",
+    "sqlalchemy>=2.0.0",
     "uvicorn>=0.30.0",
 ]
 
@@ -30,3 +32,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+    "postgresql: tests that require TEST_DATABASE_URL and a dedicated PostgreSQL test database",
+]
