@@ -3,10 +3,20 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from studygraph.config import ConfigurationError, is_database_configured
 from studygraph.database import get_session
 from studygraph.document_model import Document
 from studygraph.document_repository import DocumentRepository
@@ -33,6 +43,25 @@ class DocumentResponse(BaseModel):
     character_count: int
     text_preview: str
     created_at: datetime
+
+
+class HealthResponse(BaseModel):
+    status: str
+    database_configured: bool
+
+
+@app.exception_handler(ConfigurationError)
+async def configuration_error_handler(
+    _request: Request,
+    error: ConfigurationError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "detail": "Application configuration error.",
+            "message": str(error),
+        },
+    )
 
 
 def _build_text_preview(text: str) -> str:
@@ -65,6 +94,18 @@ async def _save_upload_to_temporary_pdf(upload: UploadFile) -> Path:
             temporary_file.write(chunk)
 
     return temporary_path
+
+
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    status_code=status.HTTP_200_OK,
+)
+def health_check() -> HealthResponse:
+    return HealthResponse(
+        status="ok",
+        database_configured=is_database_configured(),
+    )
 
 
 @app.post(

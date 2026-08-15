@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from studygraph.api import app, get_document_service
+from studygraph.config import DATABASE_URL_ENV_VAR
 from studygraph.document_model import Document
 from studygraph.document_service import DocumentService
 
@@ -45,6 +46,68 @@ def client(document_repository: InMemoryDocumentRepository) -> TestClient:
         yield test_client
 
     app.dependency_overrides.clear()
+
+
+def test_health_check_returns_api_status(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(DATABASE_URL_ENV_VAR, raising=False)
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "database_configured": False,
+    }
+
+
+def test_health_check_reports_configured_database(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        DATABASE_URL_ENV_VAR,
+        "postgresql+psycopg://user:password@localhost:5432/studygraph",
+    )
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "database_configured": True,
+    }
+
+
+def test_create_document_returns_503_when_database_url_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    monkeypatch.delenv(DATABASE_URL_ENV_VAR, raising=False)
+    app.dependency_overrides.clear()
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(pdf_path, "StudyGraph extracts text through the API")
+
+    with TestClient(app, raise_server_exceptions=False) as test_client:
+        response = test_client.post(
+            "/documents",
+            files={
+                "file": (
+                    "lecture.pdf",
+                    pdf_path.read_bytes(),
+                    "application/pdf",
+                )
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "Application configuration error.",
+        "message": "DATABASE_URL environment variable is not set.",
+    }
 
 
 def test_create_document_stores_valid_pdf(

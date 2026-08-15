@@ -83,6 +83,9 @@ Open the automatically generated API documentation:
 http://127.0.0.1:8000/docs
 ```
 
+Use `GET /health` to check whether the API is running and whether the database
+connection is configured.
+
 Use `POST /documents` to upload one PDF file. The response contains the
 document ID, filename, page count, character count, creation time, and a short
 text preview.
