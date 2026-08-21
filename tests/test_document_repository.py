@@ -58,3 +58,33 @@ def test_document_repository_saves_and_loads_document(
     assert loaded_document.id == saved_document.id
     assert loaded_document.filename == "lecture.pdf"
     assert loaded_document.extracted_text == "StudyGraph persisted text"
+
+
+def test_document_repository_lists_documents_with_search(
+    repository: DocumentRepository,
+) -> None:
+    calculus_document = repository.add(
+        Document(
+            filename="calculus.pdf",
+            page_count=2,
+            character_count=26,
+            extracted_text="Derivatives and chain rule",
+        )
+    )
+    repository.add(
+        Document(
+            filename="history.pdf",
+            page_count=3,
+            character_count=21,
+            extracted_text="Roman empire overview",
+        )
+    )
+
+    documents, total = repository.list_documents(
+        limit=10,
+        offset=0,
+        query="derivatives",
+    )
+
+    assert total == 1
+    assert [document.id for document in documents] == [calculus_document.id]

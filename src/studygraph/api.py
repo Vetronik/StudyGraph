@@ -8,6 +8,7 @@ from fastapi import (
     FastAPI,
     File,
     HTTPException,
+    Query,
     Request,
     UploadFile,
     status,
@@ -48,6 +49,13 @@ class DocumentResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     database_configured: bool
+
+
+class DocumentListResponse(BaseModel):
+    items: list[DocumentResponse]
+    total: int
+    limit: int
+    offset: int
 
 
 @app.exception_handler(ConfigurationError)
@@ -157,6 +165,34 @@ async def create_document(
             temporary_path.unlink(missing_ok=True)
 
     return _build_document_response(document)
+
+
+@app.get(
+    "/documents",
+    response_model=DocumentListResponse,
+    status_code=status.HTTP_200_OK,
+)
+def list_documents(
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    query: Annotated[str | None, Query(max_length=200)] = None,
+) -> DocumentListResponse:
+    document_list = document_service.list_documents(
+        limit=limit,
+        offset=offset,
+        query=query,
+    )
+
+    return DocumentListResponse(
+        items=[
+            _build_document_response(document)
+            for document in document_list.documents
+        ],
+        total=document_list.total,
+        limit=document_list.limit,
+        offset=document_list.offset,
+    )
 
 
 @app.get(

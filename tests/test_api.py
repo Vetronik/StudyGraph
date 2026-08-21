@@ -26,6 +26,32 @@ class InMemoryDocumentRepository:
     def get_by_id(self, document_id: int) -> Document | None:
         return self._documents.get(document_id)
 
+    def list_documents(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        query: str | None = None,
+    ) -> tuple[list[Document], int]:
+        documents = sorted(
+            self._documents.values(),
+            key=lambda document: document.id,
+            reverse=True,
+        )
+
+        if query:
+            normalized_query = query.lower()
+            documents = [
+                document
+                for document in documents
+                if (
+                    normalized_query in document.filename.lower()
+                    or normalized_query in document.extracted_text.lower()
+                )
+            ]
+
+        return documents[offset : offset + limit], len(documents)
+
     def count(self) -> int:
         return len(self._documents)
 
@@ -201,6 +227,126 @@ def test_get_document_returns_404_for_unknown_id(client: TestClient) -> None:
     assert response.json() == {
         "detail": "Document with id 999 was not found."
     }
+
+
+def test_list_documents_returns_stored_documents(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    first_pdf_path = tmp_path / "lecture-one.pdf"
+    second_pdf_path = tmp_path / "lecture-two.pdf"
+    write_pdf_with_text(first_pdf_path, "First lecture notes")
+    write_pdf_with_text(second_pdf_path, "Second lecture notes")
+
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "lecture-one.pdf",
+                first_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "lecture-two.pdf",
+                second_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+
+    response = client.get("/documents")
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 2
+    assert response.json()["limit"] == 20
+    assert response.json()["offset"] == 0
+    assert [
+        item["filename"] for item in response.json()["items"]
+    ] == [
+        "lecture-two.pdf",
+        "lecture-one.pdf",
+    ]
+
+
+def test_list_documents_supports_pagination(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    for filename in ["first.pdf", "second.pdf", "third.pdf"]:
+        pdf_path = tmp_path / filename
+        write_pdf_with_text(pdf_path, f"Notes from {filename}")
+        client.post(
+            "/documents",
+            files={
+                "file": (
+                    filename,
+                    pdf_path.read_bytes(),
+                    "application/pdf",
+                )
+            },
+        )
+
+    response = client.get("/documents?limit=1&offset=1")
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 3
+    assert response.json()["limit"] == 1
+    assert response.json()["offset"] == 1
+    assert len(response.json()["items"]) == 1
+    assert response.json()["items"][0]["filename"] == "second.pdf"
+
+
+def test_list_documents_supports_search_query(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    calculus_pdf_path = tmp_path / "calculus.pdf"
+    history_pdf_path = tmp_path / "history.pdf"
+    write_pdf_with_text(calculus_pdf_path, "Chain rule and derivatives")
+    write_pdf_with_text(history_pdf_path, "Roman empire overview")
+
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "calculus.pdf",
+                calculus_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "history.pdf",
+                history_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+
+    response = client.get("/documents?query=derivatives")
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert [
+        item["filename"] for item in response.json()["items"]
+    ] == ["calculus.pdf"]
+
+
+def test_list_documents_rejects_invalid_limit(client: TestClient) -> None:
+    response = client.get("/documents?limit=0")
+
+    assert response.status_code == 422
 
 
 def test_create_document_rejects_non_pdf_file(

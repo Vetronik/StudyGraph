@@ -90,6 +90,9 @@ Use `POST /documents` to upload one PDF file. The response contains the
 document ID, filename, page count, character count, creation time, and a short
 text preview.
 
+Use `GET /documents` to list stored documents. The endpoint supports
+`limit`, `offset`, and `query` parameters for pagination and simple text search.
+
 Use `GET /documents/{document_id}` to load metadata for a stored document.
 
 ## Tests

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Protocol
 
 from studygraph.document_model import Document
@@ -13,10 +14,26 @@ class DocumentStorageError(Exception):
     """Raised when a document cannot be stored."""
 
 
+@dataclass(frozen=True)
+class DocumentList:
+    documents: list[Document]
+    total: int
+    limit: int
+    offset: int
+
+
 class DocumentRepositoryProtocol(Protocol):
     def add(self, document: Document) -> Document: ...
 
     def get_by_id(self, document_id: int) -> Document | None: ...
+
+    def list_documents(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        query: str | None = None,
+    ) -> tuple[list[Document], int]: ...
 
 
 class DocumentService:
@@ -50,3 +67,24 @@ class DocumentService:
             )
 
         return document
+
+    def list_documents(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        query: str | None = None,
+    ) -> DocumentList:
+        normalized_query = query.strip() if query else None
+        documents, total = self._repository.list_documents(
+            limit=limit,
+            offset=offset,
+            query=normalized_query,
+        )
+
+        return DocumentList(
+            documents=documents,
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
