@@ -20,11 +20,12 @@ from sqlalchemy.orm import Session
 
 from studygraph.config import ConfigurationError, is_database_configured
 from studygraph.database import get_session
-from studygraph.document_model import Document
+from studygraph.document_model import Document, DocumentChunk
 from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import (
     DocumentDeletionError,
     DocumentNotFoundError,
+    DocumentReadError,
     DocumentService,
     DocumentStorageError,
 )
@@ -48,6 +49,15 @@ class DocumentResponse(BaseModel):
     created_at: datetime
 
 
+class DocumentChunkResponse(BaseModel):
+    id: int
+    document_id: int
+    position: int
+    text: str
+    character_count: int
+    created_at: datetime
+
+
 class HealthResponse(BaseModel):
     status: str
     database_configured: bool
@@ -58,6 +68,10 @@ class DocumentListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class DocumentChunkListResponse(BaseModel):
+    items: list[DocumentChunkResponse]
 
 
 @app.exception_handler(ConfigurationError)
@@ -87,6 +101,17 @@ def _build_document_response(document: Document) -> DocumentResponse:
         character_count=document.character_count,
         text_preview=_build_text_preview(document.extracted_text),
         created_at=document.created_at,
+    )
+
+
+def _build_document_chunk_response(chunk: DocumentChunk) -> DocumentChunkResponse:
+    return DocumentChunkResponse(
+        id=chunk.id,
+        document_id=chunk.document_id,
+        position=chunk.position,
+        text=chunk.text,
+        character_count=chunk.character_count,
+        created_at=chunk.created_at,
     )
 
 
@@ -180,11 +205,17 @@ def list_documents(
     offset: Annotated[int, Query(ge=0)] = 0,
     query: Annotated[str | None, Query(max_length=200)] = None,
 ) -> DocumentListResponse:
-    document_list = document_service.list_documents(
-        limit=limit,
-        offset=offset,
-        query=query,
-    )
+    try:
+        document_list = document_service.list_documents(
+            limit=limit,
+            offset=offset,
+            query=query,
+        )
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not load documents.",
+        ) from error
 
     return DocumentListResponse(
         items=[
@@ -194,6 +225,36 @@ def list_documents(
         total=document_list.total,
         limit=document_list.limit,
         offset=document_list.offset,
+    )
+
+
+@app.get(
+    "/documents/{document_id}/chunks",
+    response_model=DocumentChunkListResponse,
+    status_code=status.HTTP_200_OK,
+)
+def list_document_chunks(
+    document_id: int,
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+) -> DocumentChunkListResponse:
+    try:
+        chunk_list = document_service.list_document_chunks(document_id)
+    except DocumentNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not load document chunks.",
+        ) from error
+
+    return DocumentChunkListResponse(
+        items=[
+            _build_document_chunk_response(chunk)
+            for chunk in chunk_list.chunks
+        ],
     )
 
 

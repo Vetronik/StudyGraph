@@ -2,7 +2,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from studygraph.document_model import Document
+from studygraph.document_model import Document, DocumentChunk
 
 
 class DocumentRepositoryError(Exception):
@@ -34,6 +34,20 @@ class DocumentRepository:
 
     def get_by_id(self, document_id: int) -> Document | None:
         return self._session.get(Document, document_id)
+
+    def list_chunks(self, document_id: int) -> list[DocumentChunk]:
+        statement = (
+            select(DocumentChunk)
+            .where(DocumentChunk.document_id == document_id)
+            .order_by(DocumentChunk.position)
+        )
+
+        try:
+            return list(self._session.scalars(statement).all())
+        except SQLAlchemyError as error:
+            raise DocumentRepositoryError(
+                "Could not list document chunks."
+            ) from error
 
     def list_documents(
         self,

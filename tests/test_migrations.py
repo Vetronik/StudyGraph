@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 
-def test_alembic_initial_migration_generates_documents_table_sql() -> None:
+def test_alembic_migrations_generate_document_schema_sql() -> None:
     env = {
         **os.environ,
         "DATABASE_URL": (
@@ -23,3 +23,5 @@ def test_alembic_initial_migration_generates_documents_table_sql() -> None:
     assert result.returncode == 0, result.stderr
     assert "CREATE TABLE documents" in result.stdout
     assert "extracted_text" in result.stdout
+    assert "CREATE TABLE document_chunks" in result.stdout
+    assert "FOREIGN KEY(document_id) REFERENCES documents" in result.stdout

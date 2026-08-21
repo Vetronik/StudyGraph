@@ -12,6 +12,7 @@ Current milestone:
 - Return basic PDF information as JSON
 - Store processed documents in PostgreSQL
 - Manage database schema changes with Alembic migrations
+- Split extracted document text into reusable chunks for later search features
 
 No frontend, user accounts, Docker setup, or AI features are included yet.
 
@@ -94,6 +95,9 @@ Use `GET /documents` to list stored documents. The endpoint supports
 `limit`, `offset`, and `query` parameters for pagination and simple text search.
 
 Use `GET /documents/{document_id}` to load metadata for a stored document.
+
+Use `GET /documents/{document_id}/chunks` to load the stored text chunks for a
+document.
 
 Use `DELETE /documents/{document_id}` to remove a stored document.
 

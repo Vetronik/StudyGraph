@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from studygraph.api import app, get_document_service
 from studygraph.config import DATABASE_URL_ENV_VAR
-from studygraph.document_model import Document
+from studygraph.document_model import Document, DocumentChunk
 from studygraph.document_service import DocumentService
 
 
@@ -15,10 +15,16 @@ class InMemoryDocumentRepository:
     def __init__(self) -> None:
         self._documents: dict[int, Document] = {}
         self._next_id = 1
+        self._next_chunk_id = 1
 
     def add(self, document: Document) -> Document:
         document.id = self._next_id
         document.created_at = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
+        for chunk in document.chunks:
+            chunk.id = self._next_chunk_id
+            chunk.document_id = document.id
+            chunk.created_at = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
+            self._next_chunk_id += 1
         self._documents[document.id] = document
         self._next_id += 1
         return document
@@ -28,6 +34,14 @@ class InMemoryDocumentRepository:
 
     def get_by_id(self, document_id: int) -> Document | None:
         return self._documents.get(document_id)
+
+    def list_chunks(self, document_id: int) -> list[DocumentChunk]:
+        document = self._documents.get(document_id)
+
+        if document is None:
+            return []
+
+        return sorted(document.chunks, key=lambda chunk: chunk.position)
 
     def list_documents(
         self,
@@ -225,6 +239,54 @@ def test_get_document_returns_existing_document(
 
 def test_get_document_returns_404_for_unknown_id(client: TestClient) -> None:
     response = client.get("/documents/999")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Document with id 999 was not found."
+    }
+
+
+def test_list_document_chunks_returns_chunks_for_existing_document(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    text = "StudyGraph creates chunks for retrieval"
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(pdf_path, text)
+    create_response = client.post(
+        "/documents",
+        files={
+            "file": (
+                "lecture.pdf",
+                pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+    document_id = create_response.json()["id"]
+
+    response = client.get(f"/documents/{document_id}/chunks")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "id": 1,
+                "document_id": document_id,
+                "position": 0,
+                "text": text,
+                "character_count": len(text),
+                "created_at": "2026-08-15T12:00:00Z",
+            }
+        ]
+    }
+
+
+def test_list_document_chunks_returns_404_for_unknown_id(
+    client: TestClient,
+) -> None:
+    response = client.get("/documents/999/chunks")
 
     assert response.status_code == 404
     assert response.json() == {

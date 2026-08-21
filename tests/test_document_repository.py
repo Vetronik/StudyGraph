@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
-from studygraph.document_model import Base, Document
+from studygraph.document_model import Base, Document, DocumentChunk
 from studygraph.document_repository import DocumentRepository
 
 TEST_DATABASE_URL_ENV_VAR = "TEST_DATABASE_URL"
@@ -60,6 +60,34 @@ def test_document_repository_saves_and_loads_document(
     assert loaded_document.extracted_text == "StudyGraph persisted text"
 
 
+def test_document_repository_saves_and_lists_document_chunks(
+    repository: DocumentRepository,
+) -> None:
+    document = Document(
+        filename="lecture.pdf",
+        page_count=1,
+        character_count=36,
+        extracted_text="First chunk text. Second chunk text.",
+    )
+    document.chunks = [
+        DocumentChunk(position=0, text="First chunk text.", character_count=17),
+        DocumentChunk(position=1, text="Second chunk text.", character_count=18),
+    ]
+
+    saved_document = repository.add(document)
+    chunks = repository.list_chunks(saved_document.id)
+
+    assert [chunk.position for chunk in chunks] == [0, 1]
+    assert [chunk.document_id for chunk in chunks] == [
+        saved_document.id,
+        saved_document.id,
+    ]
+    assert [chunk.text for chunk in chunks] == [
+        "First chunk text.",
+        "Second chunk text.",
+    ]
+
+
 def test_document_repository_lists_documents_with_search(
     repository: DocumentRepository,
 ) -> None:
@@ -93,15 +121,22 @@ def test_document_repository_lists_documents_with_search(
 def test_document_repository_deletes_document(
     repository: DocumentRepository,
 ) -> None:
-    document = repository.add(
-        Document(
-            filename="lecture.pdf",
-            page_count=1,
-            character_count=22,
-            extracted_text="Temporary lecture text",
-        )
+    document = Document(
+        filename="lecture.pdf",
+        page_count=1,
+        character_count=22,
+        extracted_text="Temporary lecture text",
     )
+    document.chunks = [
+        DocumentChunk(
+            position=0,
+            text="Temporary lecture text",
+            character_count=22,
+        ),
+    ]
+    saved_document = repository.add(document)
 
-    repository.delete(document)
+    repository.delete(saved_document)
 
-    assert repository.get_by_id(document.id) is None
+    assert repository.get_by_id(saved_document.id) is None
+    assert repository.list_chunks(saved_document.id) == []
