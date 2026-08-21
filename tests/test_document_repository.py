@@ -88,3 +88,20 @@ def test_document_repository_lists_documents_with_search(
 
     assert total == 1
     assert [document.id for document in documents] == [calculus_document.id]
+
+
+def test_document_repository_deletes_document(
+    repository: DocumentRepository,
+) -> None:
+    document = repository.add(
+        Document(
+            filename="lecture.pdf",
+            page_count=1,
+            character_count=22,
+            extracted_text="Temporary lecture text",
+        )
+    )
+
+    repository.delete(document)
+
+    assert repository.get_by_id(document.id) is None

@@ -23,6 +23,9 @@ class InMemoryDocumentRepository:
         self._next_id += 1
         return document
 
+    def delete(self, document: Document) -> None:
+        del self._documents[document.id]
+
     def get_by_id(self, document_id: int) -> Document | None:
         return self._documents.get(document_id)
 
@@ -222,6 +225,46 @@ def test_get_document_returns_existing_document(
 
 def test_get_document_returns_404_for_unknown_id(client: TestClient) -> None:
     response = client.get("/documents/999")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Document with id 999 was not found."
+    }
+
+
+def test_delete_document_removes_existing_document(
+    client: TestClient,
+    document_repository: InMemoryDocumentRepository,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(pdf_path, "StudyGraph deletes documents")
+    create_response = client.post(
+        "/documents",
+        files={
+            "file": (
+                "lecture.pdf",
+                pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+    document_id = create_response.json()["id"]
+
+    delete_response = client.delete(f"/documents/{document_id}")
+    get_response = client.get(f"/documents/{document_id}")
+
+    assert delete_response.status_code == 204
+    assert delete_response.content == b""
+    assert get_response.status_code == 404
+    assert document_repository.count() == 0
+
+
+def test_delete_document_returns_404_for_unknown_id(
+    client: TestClient,
+) -> None:
+    response = client.delete("/documents/999")
 
     assert response.status_code == 404
     assert response.json() == {

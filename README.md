@@ -95,6 +95,8 @@ Use `GET /documents` to list stored documents. The endpoint supports
 
 Use `GET /documents/{document_id}` to load metadata for a stored document.
 
+Use `DELETE /documents/{document_id}` to remove a stored document.
+
 ## Tests
 
 Run the automated tests with:

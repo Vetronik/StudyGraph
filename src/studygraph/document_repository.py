@@ -24,6 +24,14 @@ class DocumentRepository:
 
         return document
 
+    def delete(self, document: Document) -> None:
+        try:
+            self._session.delete(document)
+            self._session.commit()
+        except SQLAlchemyError as error:
+            self._session.rollback()
+            raise DocumentRepositoryError("Could not delete document.") from error
+
     def get_by_id(self, document_id: int) -> Document | None:
         return self._session.get(Document, document_id)
 

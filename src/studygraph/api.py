@@ -10,6 +10,7 @@ from fastapi import (
     HTTPException,
     Query,
     Request,
+    Response,
     UploadFile,
     status,
 )
@@ -22,6 +23,7 @@ from studygraph.database import get_session
 from studygraph.document_model import Document
 from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import (
+    DocumentDeletionError,
     DocumentNotFoundError,
     DocumentService,
     DocumentStorageError,
@@ -213,3 +215,27 @@ def get_document(
         ) from error
 
     return _build_document_response(document)
+
+
+@app.delete(
+    "/documents/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_document(
+    document_id: int,
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+) -> Response:
+    try:
+        document_service.delete_document(document_id)
+    except DocumentNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentDeletionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not delete document.",
+        ) from error
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

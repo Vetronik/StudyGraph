@@ -14,6 +14,10 @@ class DocumentStorageError(Exception):
     """Raised when a document cannot be stored."""
 
 
+class DocumentDeletionError(Exception):
+    """Raised when a document cannot be deleted."""
+
+
 @dataclass(frozen=True)
 class DocumentList:
     documents: list[Document]
@@ -24,6 +28,8 @@ class DocumentList:
 
 class DocumentRepositoryProtocol(Protocol):
     def add(self, document: Document) -> Document: ...
+
+    def delete(self, document: Document) -> None: ...
 
     def get_by_id(self, document_id: int) -> Document | None: ...
 
@@ -67,6 +73,19 @@ class DocumentService:
             )
 
         return document
+
+    def delete_document(self, document_id: int) -> None:
+        document = self._repository.get_by_id(document_id)
+
+        if document is None:
+            raise DocumentNotFoundError(
+                f"Document with id {document_id} was not found."
+            )
+
+        try:
+            self._repository.delete(document)
+        except DocumentRepositoryError as error:
+            raise DocumentDeletionError("Could not delete document.") from error
 
     def list_documents(
         self,
