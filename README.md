@@ -107,6 +107,7 @@ Optional runtime limits can be configured through environment variables:
 $env:STUDYGRAPH_MAX_UPLOAD_BYTES = "10485760"
 $env:STUDYGRAPH_MAX_DOCUMENT_PAGES = "500"
 $env:STUDYGRAPH_MAX_DOCUMENT_CHARACTERS = "1000000"
+$env:STUDYGRAPH_REQUIRE_USER_HEADER = "false"
 ```
 
 Run database migrations before starting the API:
@@ -148,6 +149,10 @@ authentication exists, send an `X-StudyGraph-User` header:
 ```powershell
 curl -H "X-StudyGraph-User: alice" http://127.0.0.1:8000/documents
 ```
+
+Set `STUDYGRAPH_REQUIRE_USER_HEADER=true` to reject document requests that do
+not include the owner header. Owner IDs may contain letters, numbers, dots,
+underscores, hyphens, and `@`.
 
 Use `GET /documents` to list stored documents. The endpoint supports
 `limit`, `offset`, and `query` parameters for pagination and simple text search.

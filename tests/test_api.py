@@ -8,10 +8,12 @@ from fastapi import Header, HTTPException, status
 from fastapi.testclient import TestClient
 
 from studygraph.api import app, get_document_service
+from studygraph.auth import AuthenticationError, resolve_owner_id
 from studygraph.config import (
     DATABASE_URL_ENV_VAR,
     MAX_DOCUMENT_CHARACTERS_ENV_VAR,
     MAX_UPLOAD_BYTES_ENV_VAR,
+    REQUIRE_USER_HEADER_ENV_VAR,
 )
 from studygraph.document_model import Document, DocumentChunk
 from studygraph.document_repository import DocumentRepositoryError
@@ -157,16 +159,16 @@ def client(document_repository: InMemoryDocumentRepository) -> TestClient:
             Header(alias="X-StudyGraph-User", max_length=120),
         ] = None,
     ) -> DocumentService:
-        if x_studygraph_user is None:
-            owner_id = DEFAULT_OWNER_ID
-        else:
-            owner_id = x_studygraph_user.strip()
-
-            if not owner_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="X-StudyGraph-User must contain non-whitespace text.",
-                )
+        try:
+            owner_id = resolve_owner_id(
+                x_studygraph_user,
+                require_header=False,
+            )
+        except AuthenticationError as error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(error),
+            ) from error
 
         return DocumentService(document_repository, owner_id=owner_id)
 
@@ -739,6 +741,36 @@ def test_owner_header_rejects_blank_value(client: TestClient) -> None:
     assert response.status_code == 400
     assert response.json() == {
         "detail": "X-StudyGraph-User must contain non-whitespace text."
+    }
+
+
+def test_owner_header_rejects_invalid_characters(client: TestClient) -> None:
+    response = client.get(
+        "/documents",
+        headers={"X-StudyGraph-User": "owner/a"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": (
+            "X-StudyGraph-User may only contain letters, numbers, dots, "
+            "underscores, hyphens, and @."
+        )
+    }
+
+
+def test_owner_header_can_be_required(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(REQUIRE_USER_HEADER_ENV_VAR, "true")
+    app.dependency_overrides.clear()
+
+    with TestClient(app, raise_server_exceptions=False) as test_client:
+        response = test_client.get("/documents")
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "X-StudyGraph-User header is required."
     }
 
 

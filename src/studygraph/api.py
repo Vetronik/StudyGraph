@@ -21,18 +21,19 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from studygraph.auth import AuthenticationError, CurrentUser, resolve_owner_id
 from studygraph.config import (
     ConfigurationError,
     get_max_document_characters,
     get_max_document_pages,
     get_max_upload_bytes,
+    get_require_user_header,
     is_database_configured,
 )
 from studygraph.database import get_session
 from studygraph.document_model import Document, DocumentChunk
 from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import (
-    DEFAULT_OWNER_ID,
     DocumentDeletionError,
     DocumentNotFoundError,
     DocumentProcessingLimitError,
@@ -244,31 +245,39 @@ def _build_search_result_response(
     )
 
 
-def get_request_owner_id(
+def get_current_user(
     x_studygraph_user: Annotated[
         str | None,
         Header(alias="X-StudyGraph-User", max_length=120),
     ] = None,
-) -> str:
-    if x_studygraph_user is None:
-        return DEFAULT_OWNER_ID
-
-    owner_id = x_studygraph_user.strip()
-
-    if not owner_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-StudyGraph-User must contain non-whitespace text.",
+) -> CurrentUser:
+    try:
+        owner_id = resolve_owner_id(
+            x_studygraph_user,
+            require_header=get_require_user_header(),
         )
+    except AuthenticationError as error:
+        status_code = (
+            status.HTTP_401_UNAUTHORIZED
+            if x_studygraph_user is None
+            else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(
+            status_code=status_code,
+            detail=str(error),
+        ) from error
 
-    return owner_id
+    return CurrentUser(owner_id=owner_id)
 
 
 def get_document_service(
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     session: Annotated[Session, Depends(get_session)],
-    owner_id: Annotated[str, Depends(get_request_owner_id)],
 ) -> DocumentService:
-    return DocumentService(DocumentRepository(session), owner_id=owner_id)
+    return DocumentService(
+        DocumentRepository(session),
+        owner_id=current_user.owner_id,
+    )
 
 
 def get_retrieval_service(
