@@ -19,7 +19,7 @@ Current milestone:
 - Use a minimal browser UI for uploading, browsing, searching, and deleting
   documents
 
-No user accounts, Docker setup, or AI features are included yet.
+No user accounts or AI features are included yet.
 
 ## Requirements
 
@@ -44,6 +44,32 @@ To include test dependencies:
 
 ```powershell
 python -m pip install -e ".[test]"
+```
+
+To include development tools such as Ruff:
+
+```powershell
+python -m pip install -e ".[test,dev]"
+```
+
+## Local Database
+
+Start PostgreSQL with Docker Compose:
+
+```powershell
+docker compose up -d postgres
+```
+
+The Compose setup creates two databases:
+
+- `studygraph` for local development
+- `studygraph_test` for integration tests
+
+Use these local connection strings:
+
+```powershell
+$env:DATABASE_URL = "postgresql+psycopg://studygraph_user:studygraph_password@localhost:5432/studygraph"
+$env:TEST_DATABASE_URL = "postgresql+psycopg://studygraph_user:studygraph_password@localhost:5432/studygraph_test"
 ```
 
 ## Usage
@@ -131,6 +157,12 @@ Run the automated tests with:
 
 ```powershell
 python -m pytest
+```
+
+Run linting with:
+
+```powershell
+python -m ruff check .
 ```
 
 Repository integration tests require a dedicated PostgreSQL test database. Set
