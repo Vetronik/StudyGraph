@@ -27,6 +27,10 @@ class DocumentProcessingLimitError(Exception):
     """Raised when extracted document content exceeds configured limits."""
 
 
+class DocumentSearchQueryError(Exception):
+    """Raised when a search query is empty after normalization."""
+
+
 DOCUMENT_STATUS_FAILED = "failed"
 DOCUMENT_STATUS_PENDING = "pending"
 DOCUMENT_STATUS_PROCESSED = "processed"
@@ -43,6 +47,15 @@ class DocumentList:
 @dataclass(frozen=True)
 class DocumentChunkList:
     chunks: list[DocumentChunk]
+
+
+@dataclass(frozen=True)
+class DocumentSearchResultList:
+    chunks: list[DocumentChunk]
+    total: int
+    limit: int
+    offset: int
+    query: str
 
 
 class DocumentRepositoryProtocol(Protocol):
@@ -63,6 +76,14 @@ class DocumentRepositoryProtocol(Protocol):
         offset: int,
         query: str | None = None,
     ) -> tuple[list[Document], int]: ...
+
+    def search_chunks(
+        self,
+        *,
+        query: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[DocumentChunk], int]: ...
 
 
 class DocumentService:
@@ -241,4 +262,35 @@ class DocumentService:
             total=total,
             limit=limit,
             offset=offset,
+        )
+
+    def search_chunks(
+        self,
+        *,
+        query: str,
+        limit: int,
+        offset: int,
+    ) -> DocumentSearchResultList:
+        normalized_query = query.strip()
+
+        if not normalized_query:
+            raise DocumentSearchQueryError(
+                "Search query must contain non-whitespace text."
+            )
+
+        try:
+            chunks, total = self._repository.search_chunks(
+                query=normalized_query,
+                limit=limit,
+                offset=offset,
+            )
+        except DocumentRepositoryError as error:
+            raise DocumentReadError("Could not search document chunks.") from error
+
+        return DocumentSearchResultList(
+            chunks=chunks,
+            total=total,
+            limit=limit,
+            offset=offset,
+            query=normalized_query,
         )

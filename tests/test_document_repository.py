@@ -118,6 +118,49 @@ def test_document_repository_lists_documents_with_search(
     assert [document.id for document in documents] == [calculus_document.id]
 
 
+def test_document_repository_searches_document_chunks(
+    repository: DocumentRepository,
+) -> None:
+    calculus_document = Document(
+        filename="calculus.pdf",
+        page_count=1,
+        character_count=26,
+        extracted_text="Derivatives and chain rule",
+    )
+    calculus_document.chunks = [
+        DocumentChunk(
+            position=0,
+            text="Derivatives and chain rule",
+            character_count=26,
+        )
+    ]
+    repository.add(calculus_document)
+    history_document = Document(
+        filename="history.pdf",
+        page_count=1,
+        character_count=21,
+        extracted_text="Roman empire overview",
+    )
+    history_document.chunks = [
+        DocumentChunk(
+            position=0,
+            text="Roman empire overview",
+            character_count=21,
+        )
+    ]
+    repository.add(history_document)
+
+    chunks, total = repository.search_chunks(
+        query="derivatives",
+        limit=10,
+        offset=0,
+    )
+
+    assert total == 1
+    assert [chunk.text for chunk in chunks] == ["Derivatives and chain rule"]
+    assert chunks[0].document.filename == "calculus.pdf"
+
+
 def test_document_repository_deletes_document(
     repository: DocumentRepository,
 ) -> None:

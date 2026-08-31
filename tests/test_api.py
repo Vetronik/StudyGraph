@@ -30,6 +30,8 @@ class InMemoryDocumentRepository:
             if chunk.document_id is None:
                 chunk.document_id = document.id
 
+            chunk.document = document
+
             if chunk.created_at is None:
                 chunk.created_at = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
@@ -84,6 +86,32 @@ class InMemoryDocumentRepository:
             ]
 
         return documents[offset : offset + limit], len(documents)
+
+    def search_chunks(
+        self,
+        *,
+        query: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[DocumentChunk], int]:
+        normalized_query = query.lower()
+        chunks: list[DocumentChunk] = []
+
+        documents = sorted(
+            self._documents.values(),
+            key=lambda document: document.id,
+            reverse=True,
+        )
+
+        for document in documents:
+            for chunk in sorted(document.chunks, key=lambda item: item.position):
+                if (
+                    normalized_query in document.filename.lower()
+                    or normalized_query in chunk.text.lower()
+                ):
+                    chunks.append(chunk)
+
+        return chunks[offset : offset + limit], len(chunks)
 
     def count(self) -> int:
         return len(self._documents)
@@ -471,6 +499,92 @@ def test_list_documents_rejects_invalid_limit(client: TestClient) -> None:
     response = client.get("/documents?limit=0")
 
     assert response.status_code == 422
+
+
+def test_search_document_chunks_returns_matching_chunks(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    calculus_pdf_path = tmp_path / "calculus.pdf"
+    history_pdf_path = tmp_path / "history.pdf"
+    write_pdf_with_text(calculus_pdf_path, "Chain rule and derivatives")
+    write_pdf_with_text(history_pdf_path, "Roman empire overview")
+
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "calculus.pdf",
+                calculus_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "history.pdf",
+                history_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+
+    response = client.get("/search?query=derivatives")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["total"] == 1
+    assert response_data["limit"] == 20
+    assert response_data["offset"] == 0
+    assert response_data["query"] == "derivatives"
+    assert response_data["items"][0]["document_filename"] == "calculus.pdf"
+    assert response_data["items"][0]["chunk_position"] == 0
+    assert response_data["items"][0]["text"] == "Chain rule and derivatives"
+    assert response_data["items"][0]["snippet"] == "Chain rule and derivatives"
+
+
+def test_search_document_chunks_supports_pagination(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    for filename in ["first.pdf", "second.pdf", "third.pdf"]:
+        pdf_path = tmp_path / filename
+        write_pdf_with_text(pdf_path, f"Shared query text from {filename}")
+        client.post(
+            "/documents",
+            files={
+                "file": (
+                    filename,
+                    pdf_path.read_bytes(),
+                    "application/pdf",
+                )
+            },
+        )
+
+    response = client.get("/search?query=shared&limit=1&offset=1")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["total"] == 3
+    assert response_data["limit"] == 1
+    assert response_data["offset"] == 1
+    assert len(response_data["items"]) == 1
+    assert response_data["items"][0]["document_filename"] == "second.pdf"
+
+
+def test_search_document_chunks_rejects_blank_query(
+    client: TestClient,
+) -> None:
+    response = client.get("/search?query=%20%20")
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Search query must contain non-whitespace text."
+    }
 
 
 def test_create_document_rejects_non_pdf_file(

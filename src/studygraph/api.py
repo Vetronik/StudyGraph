@@ -34,12 +34,14 @@ from studygraph.document_service import (
     DocumentNotFoundError,
     DocumentProcessingLimitError,
     DocumentReadError,
+    DocumentSearchQueryError,
     DocumentService,
     DocumentStorageError,
 )
 from studygraph.pdf_text_extractor import PdfTextExtractionError, extract_pdf_document
 
 TEXT_PREVIEW_MAX_CHARACTERS = 300
+SEARCH_SNIPPET_CONTEXT_CHARACTERS = 80
 UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 PDF_HEADER = b"%PDF-"
 PDF_CONTENT_TYPES = {
@@ -90,6 +92,25 @@ class DocumentListResponse(BaseModel):
 
 class DocumentChunkListResponse(BaseModel):
     items: list[DocumentChunkResponse]
+
+
+class SearchResultResponse(BaseModel):
+    document_id: int
+    document_filename: str
+    chunk_id: int
+    chunk_position: int
+    text: str
+    snippet: str
+    character_count: int
+    created_at: datetime
+
+
+class SearchResponse(BaseModel):
+    items: list[SearchResultResponse]
+    total: int
+    limit: int
+    offset: int
+    query: str
 
 
 @dataclass(frozen=True)
@@ -145,6 +166,46 @@ def _build_document_chunk_response(chunk: DocumentChunk) -> DocumentChunkRespons
         document_id=chunk.document_id,
         position=chunk.position,
         text=chunk.text,
+        character_count=chunk.character_count,
+        created_at=chunk.created_at,
+    )
+
+
+def _build_search_snippet(text: str, query: str) -> str:
+    normalized_text = " ".join(text.split())
+    query_index = normalized_text.lower().find(query.lower())
+
+    if query_index < 0:
+        return normalized_text[: TEXT_PREVIEW_MAX_CHARACTERS]
+
+    start = max(query_index - SEARCH_SNIPPET_CONTEXT_CHARACTERS, 0)
+    end = min(
+        query_index + len(query) + SEARCH_SNIPPET_CONTEXT_CHARACTERS,
+        len(normalized_text),
+    )
+    snippet = normalized_text[start:end].strip()
+
+    if start > 0:
+        snippet = f"...{snippet}"
+
+    if end < len(normalized_text):
+        snippet = f"{snippet}..."
+
+    return snippet
+
+
+def _build_search_result_response(
+    chunk: DocumentChunk,
+    *,
+    query: str,
+) -> SearchResultResponse:
+    return SearchResultResponse(
+        document_id=chunk.document_id,
+        document_filename=chunk.document.filename,
+        chunk_id=chunk.id,
+        chunk_position=chunk.position,
+        text=chunk.text,
+        snippet=_build_search_snippet(chunk.text, query),
         character_count=chunk.character_count,
         created_at=chunk.created_at,
     )
@@ -375,6 +436,49 @@ def list_documents(
         total=document_list.total,
         limit=document_list.limit,
         offset=document_list.offset,
+    )
+
+
+@app.get(
+    "/search",
+    response_model=SearchResponse,
+    status_code=status.HTTP_200_OK,
+)
+def search_document_chunks(
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+    query: Annotated[str, Query(min_length=1, max_length=200)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> SearchResponse:
+    try:
+        search_results = document_service.search_chunks(
+            query=query,
+            limit=limit,
+            offset=offset,
+        )
+    except DocumentSearchQueryError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not search document chunks.",
+        ) from error
+
+    return SearchResponse(
+        items=[
+            _build_search_result_response(
+                chunk,
+                query=search_results.query,
+            )
+            for chunk in search_results.chunks
+        ],
+        total=search_results.total,
+        limit=search_results.limit,
+        offset=search_results.offset,
+        query=search_results.query,
     )
 
 

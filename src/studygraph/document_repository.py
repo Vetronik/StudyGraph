@@ -1,6 +1,6 @@
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, contains_eager
 
 from studygraph.document_model import Document, DocumentChunk
 
@@ -90,3 +90,43 @@ class DocumentRepository:
             raise DocumentRepositoryError("Could not list documents.") from error
 
         return documents, total
+
+    def search_chunks(
+        self,
+        *,
+        query: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[DocumentChunk], int]:
+        search_pattern = f"%{query}%"
+        search_filter = or_(
+            Document.filename.ilike(search_pattern),
+            DocumentChunk.text.ilike(search_pattern),
+        )
+        total_statement = (
+            select(func.count())
+            .select_from(DocumentChunk)
+            .join(DocumentChunk.document)
+            .where(search_filter)
+        )
+        chunks_statement = (
+            select(DocumentChunk)
+            .join(DocumentChunk.document)
+            .options(contains_eager(DocumentChunk.document))
+            .where(search_filter)
+            .order_by(
+                Document.created_at.desc(),
+                Document.id.desc(),
+                DocumentChunk.position,
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+
+        try:
+            total = self._session.scalar(total_statement) or 0
+            chunks = list(self._session.scalars(chunks_statement).all())
+        except SQLAlchemyError as error:
+            raise DocumentRepositoryError("Could not search chunks.") from error
+
+        return chunks, total

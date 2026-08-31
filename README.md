@@ -15,6 +15,7 @@ Current milestone:
 - Split extracted document text into reusable chunks for later search features
 - Validate PDF uploads with configurable size and content limits
 - Track document processing status and failed processing attempts
+- Search stored document chunks through a dedicated API endpoint
 
 No frontend, user accounts, Docker setup, or AI features are included yet.
 
@@ -109,6 +110,10 @@ Use `GET /documents/{document_id}` to load metadata for a stored document.
 
 Use `GET /documents/{document_id}/chunks` to load the stored text chunks for a
 document.
+
+Use `GET /search?query=...` to search stored document chunks. The response
+contains matching chunk text, a compact snippet, pagination metadata, and the
+source document ID and filename.
 
 Use `DELETE /documents/{document_id}` to remove a stored document.
 
