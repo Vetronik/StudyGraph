@@ -13,6 +13,8 @@ Current milestone:
 - Store processed documents in PostgreSQL
 - Manage database schema changes with Alembic migrations
 - Split extracted document text into reusable chunks for later search features
+- Validate PDF uploads with configurable size and content limits
+- Track document processing status and failed processing attempts
 
 No frontend, user accounts, Docker setup, or AI features are included yet.
 
@@ -66,6 +68,14 @@ database connection with an environment variable:
 $env:DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@localhost:5432/studygraph"
 ```
 
+Optional runtime limits can be configured through environment variables:
+
+```powershell
+$env:STUDYGRAPH_MAX_UPLOAD_BYTES = "10485760"
+$env:STUDYGRAPH_MAX_DOCUMENT_PAGES = "500"
+$env:STUDYGRAPH_MAX_DOCUMENT_CHARACTERS = "1000000"
+```
+
 Run database migrations before starting the API:
 
 ```powershell
@@ -87,9 +97,10 @@ http://127.0.0.1:8000/docs
 Use `GET /health` to check whether the API is running and whether the database
 connection is configured.
 
-Use `POST /documents` to upload one PDF file. The response contains the
-document ID, filename, page count, character count, creation time, and a short
-text preview.
+Use `POST /documents` to upload one PDF file. StudyGraph validates the upload
+size, PDF content type, and PDF file header before processing it. The response
+contains the document ID, filename, file size, processing status, page count,
+character count, creation time, and a short text preview.
 
 Use `GET /documents` to list stored documents. The endpoint supports
 `limit`, `offset`, and `query` parameters for pagination and simple text search.

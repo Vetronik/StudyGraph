@@ -24,6 +24,16 @@ class DocumentRepository:
 
         return document
 
+    def update(self, document: Document) -> Document:
+        try:
+            self._session.commit()
+            self._session.refresh(document)
+        except SQLAlchemyError as error:
+            self._session.rollback()
+            raise DocumentRepositoryError("Could not update document.") from error
+
+        return document
+
     def delete(self, document: Document) -> None:
         try:
             self._session.delete(document)

@@ -6,7 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from studygraph.api import app, get_document_service
-from studygraph.config import DATABASE_URL_ENV_VAR
+from studygraph.config import (
+    DATABASE_URL_ENV_VAR,
+    MAX_DOCUMENT_CHARACTERS_ENV_VAR,
+    MAX_UPLOAD_BYTES_ENV_VAR,
+)
 from studygraph.document_model import Document, DocumentChunk
 from studygraph.document_service import DocumentService
 
@@ -17,16 +21,28 @@ class InMemoryDocumentRepository:
         self._next_id = 1
         self._next_chunk_id = 1
 
+    def _assign_chunk_metadata(self, document: Document) -> None:
+        for chunk in document.chunks:
+            if chunk.id is None:
+                chunk.id = self._next_chunk_id
+                self._next_chunk_id += 1
+
+            if chunk.document_id is None:
+                chunk.document_id = document.id
+
+            if chunk.created_at is None:
+                chunk.created_at = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
+
     def add(self, document: Document) -> Document:
         document.id = self._next_id
         document.created_at = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
-        for chunk in document.chunks:
-            chunk.id = self._next_chunk_id
-            chunk.document_id = document.id
-            chunk.created_at = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
-            self._next_chunk_id += 1
+        self._assign_chunk_metadata(document)
         self._documents[document.id] = document
         self._next_id += 1
+        return document
+
+    def update(self, document: Document) -> Document:
+        self._assign_chunk_metadata(document)
         return document
 
     def delete(self, document: Document) -> None:
@@ -179,8 +195,11 @@ def test_create_document_stores_valid_pdf(
     assert response_data == {
         "id": 1,
         "filename": "lecture.pdf",
+        "file_size_bytes": pdf_path.stat().st_size,
         "page_count": 1,
         "character_count": 40,
+        "status": "processed",
+        "processing_error": None,
         "text_preview": "StudyGraph extracts text through the API",
         "created_at": "2026-08-15T12:00:00Z",
     }
@@ -470,6 +489,57 @@ def test_create_document_rejects_non_pdf_file(
     assert document_repository.count() == 0
 
 
+def test_create_document_rejects_file_without_pdf_header(
+    client: TestClient,
+    document_repository: InMemoryDocumentRepository,
+) -> None:
+    response = client.post(
+        "/documents",
+        files={
+            "file": (
+                "notes.pdf",
+                b"This file has a PDF extension but no PDF header.",
+                "application/pdf",
+            )
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Uploaded file content is not a PDF."
+    }
+    assert document_repository.count() == 0
+
+
+def test_create_document_rejects_upload_larger_than_configured_limit(
+    client: TestClient,
+    document_repository: InMemoryDocumentRepository,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    monkeypatch.setenv(MAX_UPLOAD_BYTES_ENV_VAR, "10")
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(pdf_path, "StudyGraph extracts text through the API")
+
+    response = client.post(
+        "/documents",
+        files={
+            "file": (
+                "lecture.pdf",
+                pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+
+    assert response.status_code == 413
+    assert response.json() == {
+        "detail": "Uploaded file is too large. Maximum size is 10 bytes."
+    }
+    assert document_repository.count() == 0
+
+
 def test_create_document_rejects_invalid_pdf(
     client: TestClient,
     document_repository: InMemoryDocumentRepository,
@@ -486,10 +556,17 @@ def test_create_document_rejects_invalid_pdf(
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"].startswith(
+    response_detail = response.json()["detail"]
+    assert response_detail["document_id"] == 1
+    assert response_detail["message"].startswith(
         "Could not process PDF: Could not read PDF:"
     )
-    assert document_repository.count() == 0
+    failed_document = document_repository.get_by_id(response_detail["document_id"])
+    assert failed_document is not None
+    assert failed_document.status == "failed"
+    assert failed_document.processing_error is not None
+    assert failed_document.processing_error.startswith("Could not read PDF:")
+    assert document_repository.count() == 1
 
 
 def test_create_document_rejects_pdf_without_extractable_text(
@@ -513,10 +590,55 @@ def test_create_document_rejects_pdf_without_extractable_text(
     )
 
     assert response.status_code == 422
-    assert response.json() == {
-        "detail": (
+    assert response.json()["detail"] == {
+        "message": (
             "Could not process PDF: No text could be extracted. "
             "The PDF may contain scanned images only."
-        )
+        ),
+        "document_id": 1,
     }
-    assert document_repository.count() == 0
+    failed_document = document_repository.get_by_id(1)
+    assert failed_document is not None
+    assert failed_document.status == "failed"
+    assert failed_document.processing_error == (
+        "No text could be extracted. The PDF may contain scanned images only."
+    )
+    assert document_repository.count() == 1
+
+
+def test_create_document_marks_document_failed_when_text_limit_is_exceeded(
+    client: TestClient,
+    document_repository: InMemoryDocumentRepository,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    monkeypatch.setenv(MAX_DOCUMENT_CHARACTERS_ENV_VAR, "10")
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(pdf_path, "StudyGraph extracts text through the API")
+
+    response = client.post(
+        "/documents",
+        files={
+            "file": (
+                "lecture.pdf",
+                pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == {
+        "message": (
+            "Could not process PDF: Document exceeds maximum character count "
+            "(40 > 10)."
+        ),
+        "document_id": 1,
+    }
+    failed_document = document_repository.get_by_id(1)
+    assert failed_document is not None
+    assert failed_document.status == "failed"
+    assert failed_document.processing_error == (
+        "Document exceeds maximum character count (40 > 10)."
+    )

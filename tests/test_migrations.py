@@ -23,5 +23,8 @@ def test_alembic_migrations_generate_document_schema_sql() -> None:
     assert result.returncode == 0, result.stderr
     assert "CREATE TABLE documents" in result.stdout
     assert "extracted_text" in result.stdout
+    assert "file_size_bytes" in result.stdout
+    assert "processing_error" in result.stdout
+    assert "status" in result.stdout
     assert "CREATE TABLE document_chunks" in result.stdout
     assert "FOREIGN KEY(document_id) REFERENCES documents" in result.stdout

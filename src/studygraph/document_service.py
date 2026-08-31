@@ -23,6 +23,15 @@ class DocumentReadError(Exception):
     """Raised when documents cannot be loaded."""
 
 
+class DocumentProcessingLimitError(Exception):
+    """Raised when extracted document content exceeds configured limits."""
+
+
+DOCUMENT_STATUS_FAILED = "failed"
+DOCUMENT_STATUS_PENDING = "pending"
+DOCUMENT_STATUS_PROCESSED = "processed"
+
+
 @dataclass(frozen=True)
 class DocumentList:
     documents: list[Document]
@@ -38,6 +47,8 @@ class DocumentChunkList:
 
 class DocumentRepositoryProtocol(Protocol):
     def add(self, document: Document) -> Document: ...
+
+    def update(self, document: Document) -> Document: ...
 
     def delete(self, document: Document) -> None: ...
 
@@ -58,6 +69,27 @@ class DocumentService:
     def __init__(self, repository: DocumentRepositoryProtocol) -> None:
         self._repository = repository
 
+    def create_pending_document(
+        self,
+        *,
+        filename: str,
+        file_size_bytes: int,
+    ) -> Document:
+        document = Document(
+            filename=filename,
+            file_size_bytes=file_size_bytes,
+            page_count=0,
+            character_count=0,
+            extracted_text="",
+            status=DOCUMENT_STATUS_PENDING,
+            processing_error=None,
+        )
+
+        try:
+            return self._repository.add(document)
+        except DocumentRepositoryError as error:
+            raise DocumentStorageError("Could not create document.") from error
+
     def create_document(
         self,
         *,
@@ -66,9 +98,12 @@ class DocumentService:
     ) -> Document:
         document = Document(
             filename=filename,
+            file_size_bytes=0,
             page_count=extracted_document.page_count,
             character_count=len(extracted_document.text),
             extracted_text=extracted_document.text,
+            status=DOCUMENT_STATUS_PROCESSED,
+            processing_error=None,
         )
         document.chunks = [
             DocumentChunk(
@@ -83,6 +118,67 @@ class DocumentService:
             return self._repository.add(document)
         except DocumentRepositoryError as error:
             raise DocumentStorageError("Could not save document.") from error
+
+    def process_document(
+        self,
+        document_id: int,
+        *,
+        extracted_document: ExtractedPdfDocument,
+        max_pages: int,
+        max_characters: int,
+    ) -> Document:
+        document = self.get_document(document_id)
+
+        if extracted_document.page_count > max_pages:
+            raise DocumentProcessingLimitError(
+                "Document exceeds maximum page count "
+                f"({extracted_document.page_count} > {max_pages})."
+            )
+
+        character_count = len(extracted_document.text)
+
+        if character_count > max_characters:
+            raise DocumentProcessingLimitError(
+                "Document exceeds maximum character count "
+                f"({character_count} > {max_characters})."
+            )
+
+        document.page_count = extracted_document.page_count
+        document.character_count = character_count
+        document.extracted_text = extracted_document.text
+        document.status = DOCUMENT_STATUS_PROCESSED
+        document.processing_error = None
+        document.chunks = [
+            DocumentChunk(
+                position=chunk.position,
+                text=chunk.text,
+                character_count=chunk.character_count,
+            )
+            for chunk in chunk_text(extracted_document.text)
+        ]
+
+        try:
+            return self._repository.update(document)
+        except DocumentRepositoryError as error:
+            raise DocumentStorageError("Could not save document.") from error
+
+    def mark_document_failed(
+        self,
+        document_id: int,
+        *,
+        error_message: str,
+    ) -> Document:
+        document = self.get_document(document_id)
+        document.status = DOCUMENT_STATUS_FAILED
+        document.processing_error = error_message
+        document.chunks = []
+
+        try:
+            return self._repository.update(document)
+        except DocumentRepositoryError as error:
+            raise DocumentStorageError(
+                "Could not save document failure state."
+            ) from error
 
     def get_document(self, document_id: int) -> Document:
         document = self._repository.get_by_id(document_id)

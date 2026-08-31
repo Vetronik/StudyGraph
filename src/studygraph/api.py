@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -18,13 +19,20 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from studygraph.config import ConfigurationError, is_database_configured
+from studygraph.config import (
+    ConfigurationError,
+    get_max_document_characters,
+    get_max_document_pages,
+    get_max_upload_bytes,
+    is_database_configured,
+)
 from studygraph.database import get_session
 from studygraph.document_model import Document, DocumentChunk
 from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import (
     DocumentDeletionError,
     DocumentNotFoundError,
+    DocumentProcessingLimitError,
     DocumentReadError,
     DocumentService,
     DocumentStorageError,
@@ -32,6 +40,13 @@ from studygraph.document_service import (
 from studygraph.pdf_text_extractor import PdfTextExtractionError, extract_pdf_document
 
 TEXT_PREVIEW_MAX_CHARACTERS = 300
+UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
+PDF_HEADER = b"%PDF-"
+PDF_CONTENT_TYPES = {
+    "application/octet-stream",
+    "application/pdf",
+    "application/x-pdf",
+}
 
 app = FastAPI(
     title="StudyGraph API",
@@ -43,8 +58,11 @@ app = FastAPI(
 class DocumentResponse(BaseModel):
     id: int
     filename: str
+    file_size_bytes: int
     page_count: int
     character_count: int
+    status: str
+    processing_error: str | None
     text_preview: str
     created_at: datetime
 
@@ -74,6 +92,20 @@ class DocumentChunkListResponse(BaseModel):
     items: list[DocumentChunkResponse]
 
 
+@dataclass(frozen=True)
+class SavedUpload:
+    path: Path
+    size_bytes: int
+
+
+class UploadTooLargeError(Exception):
+    """Raised when an uploaded file exceeds the configured size limit."""
+
+
+class UploadContentError(Exception):
+    """Raised when an uploaded file does not look like a supported PDF."""
+
+
 @app.exception_handler(ConfigurationError)
 async def configuration_error_handler(
     _request: Request,
@@ -97,8 +129,11 @@ def _build_document_response(document: Document) -> DocumentResponse:
     return DocumentResponse(
         id=document.id,
         filename=document.filename,
+        file_size_bytes=document.file_size_bytes,
         page_count=document.page_count,
         character_count=document.character_count,
+        status=document.status,
+        processing_error=document.processing_error,
         text_preview=_build_text_preview(document.extracted_text),
         created_at=document.created_at,
     )
@@ -121,14 +156,73 @@ def get_document_service(
     return DocumentService(DocumentRepository(session))
 
 
-async def _save_upload_to_temporary_pdf(upload: UploadFile) -> Path:
-    with NamedTemporaryFile(delete=False, suffix=".pdf") as temporary_file:
-        temporary_path = Path(temporary_file.name)
+async def _save_upload_to_temporary_pdf(
+    upload: UploadFile,
+    *,
+    max_bytes: int,
+) -> SavedUpload:
+    temporary_path: Path | None = None
+    size_bytes = 0
 
-        while chunk := await upload.read(1024 * 1024):
-            temporary_file.write(chunk)
+    try:
+        with NamedTemporaryFile(delete=False, suffix=".pdf") as temporary_file:
+            temporary_path = Path(temporary_file.name)
 
-    return temporary_path
+            while chunk := await upload.read(UPLOAD_CHUNK_SIZE_BYTES):
+                size_bytes += len(chunk)
+
+                if size_bytes > max_bytes:
+                    raise UploadTooLargeError(
+                        "Uploaded file is too large. "
+                        f"Maximum size is {max_bytes} bytes."
+                    )
+
+                temporary_file.write(chunk)
+    except UploadTooLargeError:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
+
+    return SavedUpload(path=temporary_path, size_bytes=size_bytes)
+
+
+def _validate_upload_content_type(upload: UploadFile) -> None:
+    if upload.content_type is None:
+        return
+
+    content_type = upload.content_type.split(";", maxsplit=1)[0].strip().lower()
+
+    if content_type not in PDF_CONTENT_TYPES:
+        raise UploadContentError("Uploaded file must use a PDF content type.")
+
+
+def _validate_pdf_header(pdf_path: Path) -> None:
+    with pdf_path.open("rb") as pdf_file:
+        header = pdf_file.read(len(PDF_HEADER))
+
+    if header != PDF_HEADER:
+        raise UploadContentError("Uploaded file content is not a PDF.")
+
+
+def _mark_document_failed(
+    document_service: DocumentService,
+    document: Document | None,
+    *,
+    error_message: str,
+) -> None:
+    if document is None:
+        return
+
+    try:
+        document_service.mark_document_failed(
+            document.id,
+            error_message=error_message,
+        )
+    except DocumentStorageError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not save document failure state.",
+        ) from error
 
 
 @app.get(
@@ -166,19 +260,69 @@ async def create_document(
             detail="Uploaded file must have a .pdf extension.",
         )
 
-    temporary_path: Path | None = None
+    try:
+        _validate_upload_content_type(file)
+    except UploadContentError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+
+    saved_upload: SavedUpload | None = None
+    document: Document | None = None
 
     try:
-        temporary_path = await _save_upload_to_temporary_pdf(file)
-        extracted_document = extract_pdf_document(temporary_path)
-        document = document_service.create_document(
-            filename=filename,
-            extracted_document=extracted_document,
+        saved_upload = await _save_upload_to_temporary_pdf(
+            file,
+            max_bytes=get_max_upload_bytes(),
         )
+        _validate_pdf_header(saved_upload.path)
+        document = document_service.create_pending_document(
+            filename=filename,
+            file_size_bytes=saved_upload.size_bytes,
+        )
+        extracted_document = extract_pdf_document(saved_upload.path)
+        document = document_service.process_document(
+            document.id,
+            extracted_document=extracted_document,
+            max_pages=get_max_document_pages(),
+            max_characters=get_max_document_characters(),
+        )
+    except UploadTooLargeError as error:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=str(error),
+        ) from error
+    except UploadContentError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
     except PdfTextExtractionError as error:
+        _mark_document_failed(
+            document_service,
+            document,
+            error_message=str(error),
+        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Could not process PDF: {error}",
+            detail={
+                "message": f"Could not process PDF: {error}",
+                "document_id": document.id if document is not None else None,
+            },
+        ) from error
+    except DocumentProcessingLimitError as error:
+        _mark_document_failed(
+            document_service,
+            document,
+            error_message=str(error),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "message": f"Could not process PDF: {error}",
+                "document_id": document.id if document is not None else None,
+            },
         ) from error
     except DocumentStorageError as error:
         raise HTTPException(
@@ -188,8 +332,14 @@ async def create_document(
     finally:
         await file.close()
 
-        if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
+        if saved_upload is not None:
+            saved_upload.path.unlink(missing_ok=True)
+
+    if document is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not process document.",
+        )
 
     return _build_document_response(document)
 
