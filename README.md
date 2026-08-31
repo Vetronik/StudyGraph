@@ -19,8 +19,9 @@ Current milestone:
 - Use a minimal browser UI for uploading, browsing, searching, and deleting
   documents
 - Build source-grounded retrieval context for future RAG features
+- Scope document access by owner through an `X-StudyGraph-User` request header
 
-No user accounts or AI answer generation are included yet.
+No real authentication or AI answer generation are included yet.
 
 ## Requirements
 
@@ -137,6 +138,14 @@ Use `POST /documents` to upload one PDF file. StudyGraph validates the upload
 size, PDF content type, and PDF file header before processing it. The response
 contains the document ID, filename, file size, processing status, page count,
 character count, creation time, and a short text preview.
+
+All document endpoints are scoped by owner. For local development, requests
+without a header use `local-user`. To simulate separate users before real
+authentication exists, send an `X-StudyGraph-User` header:
+
+```powershell
+curl -H "X-StudyGraph-User: alice" http://127.0.0.1:8000/documents
+```
 
 Use `GET /documents` to list stored documents. The endpoint supports
 `limit`, `offset`, and `query` parameters for pagination and simple text search.

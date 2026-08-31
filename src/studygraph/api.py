@@ -8,6 +8,7 @@ from fastapi import (
     Depends,
     FastAPI,
     File,
+    Header,
     HTTPException,
     Query,
     Request,
@@ -31,6 +32,7 @@ from studygraph.database import get_session
 from studygraph.document_model import Document, DocumentChunk
 from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import (
+    DEFAULT_OWNER_ID,
     DocumentDeletionError,
     DocumentNotFoundError,
     DocumentProcessingLimitError,
@@ -64,6 +66,7 @@ app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 class DocumentResponse(BaseModel):
     id: int
     filename: str
+    owner_id: str
     file_size_bytes: int
     page_count: int
     character_count: int
@@ -174,6 +177,7 @@ def _build_document_response(document: Document) -> DocumentResponse:
     return DocumentResponse(
         id=document.id,
         filename=document.filename,
+        owner_id=document.owner_id,
         file_size_bytes=document.file_size_bytes,
         page_count=document.page_count,
         character_count=document.character_count,
@@ -235,10 +239,31 @@ def _build_search_result_response(
     )
 
 
+def get_request_owner_id(
+    x_studygraph_user: Annotated[
+        str | None,
+        Header(alias="X-StudyGraph-User", max_length=120),
+    ] = None,
+) -> str:
+    if x_studygraph_user is None:
+        return DEFAULT_OWNER_ID
+
+    owner_id = x_studygraph_user.strip()
+
+    if not owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="X-StudyGraph-User must contain non-whitespace text.",
+        )
+
+    return owner_id
+
+
 def get_document_service(
     session: Annotated[Session, Depends(get_session)],
+    owner_id: Annotated[str, Depends(get_request_owner_id)],
 ) -> DocumentService:
-    return DocumentService(DocumentRepository(session))
+    return DocumentService(DocumentRepository(session), owner_id=owner_id)
 
 
 def get_retrieval_service(

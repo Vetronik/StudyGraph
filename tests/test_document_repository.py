@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from studygraph.document_model import Base, Document, DocumentChunk
 from studygraph.document_repository import DocumentRepository
+from studygraph.document_service import DEFAULT_OWNER_ID
 
 TEST_DATABASE_URL_ENV_VAR = "TEST_DATABASE_URL"
 
@@ -50,7 +51,10 @@ def test_document_repository_saves_and_loads_document(
     )
 
     saved_document = repository.add(document)
-    loaded_document = repository.get_by_id(saved_document.id)
+    loaded_document = repository.get_by_id(
+        saved_document.id,
+        owner_id=DEFAULT_OWNER_ID,
+    )
 
     assert saved_document.id is not None
     assert saved_document.created_at is not None
@@ -75,7 +79,10 @@ def test_document_repository_saves_and_lists_document_chunks(
     ]
 
     saved_document = repository.add(document)
-    chunks = repository.list_chunks(saved_document.id)
+    chunks = repository.list_chunks(
+        saved_document.id,
+        owner_id=DEFAULT_OWNER_ID,
+    )
 
     assert [chunk.position for chunk in chunks] == [0, 1]
     assert [chunk.document_id for chunk in chunks] == [
@@ -109,6 +116,7 @@ def test_document_repository_lists_documents_with_search(
     )
 
     documents, total = repository.list_documents(
+        owner_id=DEFAULT_OWNER_ID,
         limit=10,
         offset=0,
         query="derivatives",
@@ -151,6 +159,7 @@ def test_document_repository_searches_document_chunks(
     repository.add(history_document)
 
     chunks, total = repository.search_chunks(
+        owner_id=DEFAULT_OWNER_ID,
         query="derivatives",
         limit=10,
         offset=0,
@@ -159,6 +168,39 @@ def test_document_repository_searches_document_chunks(
     assert total == 1
     assert [chunk.text for chunk in chunks] == ["Derivatives and chain rule"]
     assert chunks[0].document.filename == "calculus.pdf"
+
+
+def test_document_repository_scopes_documents_by_owner(
+    repository: DocumentRepository,
+) -> None:
+    first_document = repository.add(
+        Document(
+            filename="first.pdf",
+            owner_id="owner-a",
+            page_count=1,
+            character_count=16,
+            extracted_text="Owner A material",
+        )
+    )
+    repository.add(
+        Document(
+            filename="second.pdf",
+            owner_id="owner-b",
+            page_count=1,
+            character_count=16,
+            extracted_text="Owner B material",
+        )
+    )
+
+    documents, total = repository.list_documents(
+        owner_id="owner-a",
+        limit=10,
+        offset=0,
+    )
+
+    assert total == 1
+    assert [document.id for document in documents] == [first_document.id]
+    assert repository.get_by_id(first_document.id, owner_id="owner-b") is None
 
 
 def test_document_repository_deletes_document(
@@ -181,5 +223,11 @@ def test_document_repository_deletes_document(
 
     repository.delete(saved_document)
 
-    assert repository.get_by_id(saved_document.id) is None
-    assert repository.list_chunks(saved_document.id) == []
+    assert (
+        repository.get_by_id(saved_document.id, owner_id=DEFAULT_OWNER_ID)
+        is None
+    )
+    assert (
+        repository.list_chunks(saved_document.id, owner_id=DEFAULT_OWNER_ID)
+        == []
+    )

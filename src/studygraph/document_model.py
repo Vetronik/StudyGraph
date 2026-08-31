@@ -23,6 +23,13 @@ class Document(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    owner_id: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+        default="local-user",
+        server_default="local-user",
+        index=True,
+    )
     file_size_bytes: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

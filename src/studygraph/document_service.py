@@ -34,6 +34,7 @@ class DocumentSearchQueryError(Exception):
 DOCUMENT_STATUS_FAILED = "failed"
 DOCUMENT_STATUS_PENDING = "pending"
 DOCUMENT_STATUS_PROCESSED = "processed"
+DEFAULT_OWNER_ID = "local-user"
 
 
 @dataclass(frozen=True)
@@ -65,13 +66,19 @@ class DocumentRepositoryProtocol(Protocol):
 
     def delete(self, document: Document) -> None: ...
 
-    def get_by_id(self, document_id: int) -> Document | None: ...
+    def get_by_id(self, document_id: int, *, owner_id: str) -> Document | None: ...
 
-    def list_chunks(self, document_id: int) -> list[DocumentChunk]: ...
+    def list_chunks(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+    ) -> list[DocumentChunk]: ...
 
     def list_documents(
         self,
         *,
+        owner_id: str,
         limit: int,
         offset: int,
         query: str | None = None,
@@ -80,6 +87,7 @@ class DocumentRepositoryProtocol(Protocol):
     def search_chunks(
         self,
         *,
+        owner_id: str,
         query: str,
         limit: int,
         offset: int,
@@ -87,8 +95,14 @@ class DocumentRepositoryProtocol(Protocol):
 
 
 class DocumentService:
-    def __init__(self, repository: DocumentRepositoryProtocol) -> None:
+    def __init__(
+        self,
+        repository: DocumentRepositoryProtocol,
+        *,
+        owner_id: str = DEFAULT_OWNER_ID,
+    ) -> None:
         self._repository = repository
+        self._owner_id = owner_id
 
     def create_pending_document(
         self,
@@ -98,6 +112,7 @@ class DocumentService:
     ) -> Document:
         document = Document(
             filename=filename,
+            owner_id=self._owner_id,
             file_size_bytes=file_size_bytes,
             page_count=0,
             character_count=0,
@@ -119,6 +134,7 @@ class DocumentService:
     ) -> Document:
         document = Document(
             filename=filename,
+            owner_id=self._owner_id,
             file_size_bytes=0,
             page_count=extracted_document.page_count,
             character_count=len(extracted_document.text),
@@ -202,7 +218,10 @@ class DocumentService:
             ) from error
 
     def get_document(self, document_id: int) -> Document:
-        document = self._repository.get_by_id(document_id)
+        document = self._repository.get_by_id(
+            document_id,
+            owner_id=self._owner_id,
+        )
 
         if document is None:
             raise DocumentNotFoundError(
@@ -212,7 +231,10 @@ class DocumentService:
         return document
 
     def list_document_chunks(self, document_id: int) -> DocumentChunkList:
-        document = self._repository.get_by_id(document_id)
+        document = self._repository.get_by_id(
+            document_id,
+            owner_id=self._owner_id,
+        )
 
         if document is None:
             raise DocumentNotFoundError(
@@ -220,14 +242,20 @@ class DocumentService:
             )
 
         try:
-            chunks = self._repository.list_chunks(document_id)
+            chunks = self._repository.list_chunks(
+                document_id,
+                owner_id=self._owner_id,
+            )
         except DocumentRepositoryError as error:
             raise DocumentReadError("Could not load document chunks.") from error
 
         return DocumentChunkList(chunks=chunks)
 
     def delete_document(self, document_id: int) -> None:
-        document = self._repository.get_by_id(document_id)
+        document = self._repository.get_by_id(
+            document_id,
+            owner_id=self._owner_id,
+        )
 
         if document is None:
             raise DocumentNotFoundError(
@@ -250,6 +278,7 @@ class DocumentService:
 
         try:
             documents, total = self._repository.list_documents(
+                owner_id=self._owner_id,
                 limit=limit,
                 offset=offset,
                 query=normalized_query,
@@ -280,6 +309,7 @@ class DocumentService:
 
         try:
             chunks, total = self._repository.search_chunks(
+                owner_id=self._owner_id,
                 query=normalized_query,
                 limit=limit,
                 offset=offset,

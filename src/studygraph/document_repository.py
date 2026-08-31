@@ -42,13 +42,20 @@ class DocumentRepository:
             self._session.rollback()
             raise DocumentRepositoryError("Could not delete document.") from error
 
-    def get_by_id(self, document_id: int) -> Document | None:
-        return self._session.get(Document, document_id)
+    def get_by_id(self, document_id: int, *, owner_id: str) -> Document | None:
+        statement = select(Document).where(
+            Document.id == document_id,
+            Document.owner_id == owner_id,
+        )
 
-    def list_chunks(self, document_id: int) -> list[DocumentChunk]:
+        return self._session.scalar(statement)
+
+    def list_chunks(self, document_id: int, *, owner_id: str) -> list[DocumentChunk]:
         statement = (
             select(DocumentChunk)
+            .join(DocumentChunk.document)
             .where(DocumentChunk.document_id == document_id)
+            .where(Document.owner_id == owner_id)
             .order_by(DocumentChunk.position)
         )
 
@@ -62,13 +69,19 @@ class DocumentRepository:
     def list_documents(
         self,
         *,
+        owner_id: str,
         limit: int,
         offset: int,
         query: str | None = None,
     ) -> tuple[list[Document], int]:
-        total_statement = select(func.count()).select_from(Document)
+        total_statement = (
+            select(func.count())
+            .select_from(Document)
+            .where(Document.owner_id == owner_id)
+        )
         documents_statement = (
             select(Document)
+            .where(Document.owner_id == owner_id)
             .order_by(Document.created_at.desc(), Document.id.desc())
             .limit(limit)
             .offset(offset)
@@ -94,6 +107,7 @@ class DocumentRepository:
     def search_chunks(
         self,
         *,
+        owner_id: str,
         query: str,
         limit: int,
         offset: int,
@@ -107,12 +121,14 @@ class DocumentRepository:
             select(func.count())
             .select_from(DocumentChunk)
             .join(DocumentChunk.document)
+            .where(Document.owner_id == owner_id)
             .where(search_filter)
         )
         chunks_statement = (
             select(DocumentChunk)
             .join(DocumentChunk.document)
             .options(contains_eager(DocumentChunk.document))
+            .where(Document.owner_id == owner_id)
             .where(search_filter)
             .order_by(
                 Document.created_at.desc(),

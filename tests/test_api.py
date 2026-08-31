@@ -1,8 +1,10 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Annotated
 
 import pytest
+from fastapi import Header, HTTPException, status
 from fastapi.testclient import TestClient
 
 from studygraph.api import app, get_document_service
@@ -12,7 +14,7 @@ from studygraph.config import (
     MAX_UPLOAD_BYTES_ENV_VAR,
 )
 from studygraph.document_model import Document, DocumentChunk
-from studygraph.document_service import DocumentService
+from studygraph.document_service import DEFAULT_OWNER_ID, DocumentService
 
 
 class InMemoryDocumentRepository:
@@ -37,6 +39,8 @@ class InMemoryDocumentRepository:
 
     def add(self, document: Document) -> Document:
         document.id = self._next_id
+        if document.owner_id is None:
+            document.owner_id = DEFAULT_OWNER_ID
         document.created_at = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
         self._assign_chunk_metadata(document)
         self._documents[document.id] = document
@@ -50,11 +54,16 @@ class InMemoryDocumentRepository:
     def delete(self, document: Document) -> None:
         del self._documents[document.id]
 
-    def get_by_id(self, document_id: int) -> Document | None:
-        return self._documents.get(document_id)
-
-    def list_chunks(self, document_id: int) -> list[DocumentChunk]:
+    def get_by_id(self, document_id: int, *, owner_id: str) -> Document | None:
         document = self._documents.get(document_id)
+
+        if document is None or document.owner_id != owner_id:
+            return None
+
+        return document
+
+    def list_chunks(self, document_id: int, *, owner_id: str) -> list[DocumentChunk]:
+        document = self.get_by_id(document_id, owner_id=owner_id)
 
         if document is None:
             return []
@@ -64,12 +73,17 @@ class InMemoryDocumentRepository:
     def list_documents(
         self,
         *,
+        owner_id: str,
         limit: int,
         offset: int,
         query: str | None = None,
     ) -> tuple[list[Document], int]:
         documents = sorted(
-            self._documents.values(),
+            [
+                document
+                for document in self._documents.values()
+                if document.owner_id == owner_id
+            ],
             key=lambda document: document.id,
             reverse=True,
         )
@@ -90,6 +104,7 @@ class InMemoryDocumentRepository:
     def search_chunks(
         self,
         *,
+        owner_id: str,
         query: str,
         limit: int,
         offset: int,
@@ -104,6 +119,9 @@ class InMemoryDocumentRepository:
         )
 
         for document in documents:
+            if document.owner_id != owner_id:
+                continue
+
             for chunk in sorted(document.chunks, key=lambda item: item.position):
                 if (
                     normalized_query in document.filename.lower()
@@ -124,8 +142,24 @@ def document_repository() -> InMemoryDocumentRepository:
 
 @pytest.fixture
 def client(document_repository: InMemoryDocumentRepository) -> TestClient:
-    def override_document_service() -> DocumentService:
-        return DocumentService(document_repository)
+    def override_document_service(
+        x_studygraph_user: Annotated[
+            str | None,
+            Header(alias="X-StudyGraph-User", max_length=120),
+        ] = None,
+    ) -> DocumentService:
+        if x_studygraph_user is None:
+            owner_id = DEFAULT_OWNER_ID
+        else:
+            owner_id = x_studygraph_user.strip()
+
+            if not owner_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="X-StudyGraph-User must contain non-whitespace text.",
+                )
+
+        return DocumentService(document_repository, owner_id=owner_id)
 
     app.dependency_overrides[get_document_service] = override_document_service
 
@@ -240,6 +274,7 @@ def test_create_document_stores_valid_pdf(
     assert response_data == {
         "id": 1,
         "filename": "lecture.pdf",
+        "owner_id": DEFAULT_OWNER_ID,
         "file_size_bytes": pdf_path.stat().st_size,
         "page_count": 1,
         "character_count": 40,
@@ -604,6 +639,81 @@ def test_search_document_chunks_rejects_blank_query(
     }
 
 
+def test_document_access_is_scoped_by_owner_header(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    first_pdf_path = tmp_path / "owner-a.pdf"
+    second_pdf_path = tmp_path / "owner-b.pdf"
+    write_pdf_with_text(first_pdf_path, "Owner A derivatives notes")
+    write_pdf_with_text(second_pdf_path, "Owner B private history")
+
+    first_response = client.post(
+        "/documents",
+        headers={"X-StudyGraph-User": "owner-a"},
+        files={
+            "file": (
+                "owner-a.pdf",
+                first_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+    second_response = client.post(
+        "/documents",
+        headers={"X-StudyGraph-User": "owner-b"},
+        files={
+            "file": (
+                "owner-b.pdf",
+                second_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+    first_document_id = first_response.json()["id"]
+    second_document_id = second_response.json()["id"]
+
+    owner_a_list = client.get(
+        "/documents",
+        headers={"X-StudyGraph-User": "owner-a"},
+    )
+    owner_a_forbidden_get = client.get(
+        f"/documents/{second_document_id}",
+        headers={"X-StudyGraph-User": "owner-a"},
+    )
+    owner_a_search = client.get(
+        "/search?query=history",
+        headers={"X-StudyGraph-User": "owner-a"},
+    )
+    owner_b_search = client.get(
+        "/search?query=history",
+        headers={"X-StudyGraph-User": "owner-b"},
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert first_response.json()["owner_id"] == "owner-a"
+    assert second_response.json()["owner_id"] == "owner-b"
+    assert owner_a_list.json()["total"] == 1
+    assert owner_a_list.json()["items"][0]["id"] == first_document_id
+    assert owner_a_forbidden_get.status_code == 404
+    assert owner_a_search.json()["total"] == 0
+    assert owner_b_search.json()["total"] == 1
+
+
+def test_owner_header_rejects_blank_value(client: TestClient) -> None:
+    response = client.get(
+        "/documents",
+        headers={"X-StudyGraph-User": "   "},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "X-StudyGraph-User must contain non-whitespace text."
+    }
+
+
 def test_build_rag_context_returns_source_grounded_context(
     client: TestClient,
     tmp_path: Path,
@@ -764,7 +874,10 @@ def test_create_document_rejects_invalid_pdf(
     assert response_detail["message"].startswith(
         "Could not process PDF: Could not read PDF:"
     )
-    failed_document = document_repository.get_by_id(response_detail["document_id"])
+    failed_document = document_repository.get_by_id(
+        response_detail["document_id"],
+        owner_id=DEFAULT_OWNER_ID,
+    )
     assert failed_document is not None
     assert failed_document.status == "failed"
     assert failed_document.processing_error is not None
@@ -800,7 +913,7 @@ def test_create_document_rejects_pdf_without_extractable_text(
         ),
         "document_id": 1,
     }
-    failed_document = document_repository.get_by_id(1)
+    failed_document = document_repository.get_by_id(1, owner_id=DEFAULT_OWNER_ID)
     assert failed_document is not None
     assert failed_document.status == "failed"
     assert failed_document.processing_error == (
@@ -839,7 +952,7 @@ def test_create_document_marks_document_failed_when_text_limit_is_exceeded(
         ),
         "document_id": 1,
     }
-    failed_document = document_repository.get_by_id(1)
+    failed_document = document_repository.get_by_id(1, owner_id=DEFAULT_OWNER_ID)
     assert failed_document is not None
     assert failed_document.status == "failed"
     assert failed_document.processing_error == (
