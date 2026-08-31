@@ -115,10 +115,16 @@ class DocumentRepository:
         limit: int,
         offset: int,
     ) -> tuple[list[DocumentChunk], int]:
-        search_pattern = f"%{query}%"
+        search_query = func.websearch_to_tsquery("simple", query)
+        chunk_search_vector = func.to_tsvector("simple", DocumentChunk.text)
+        filename_search_vector = func.to_tsvector("simple", Document.filename)
         search_filter = or_(
-            Document.filename.ilike(search_pattern),
-            DocumentChunk.text.ilike(search_pattern),
+            chunk_search_vector.op("@@")(search_query),
+            filename_search_vector.op("@@")(search_query),
+        )
+        rank = func.ts_rank_cd(
+            chunk_search_vector,
+            search_query,
         )
         total_statement = (
             select(func.count())
@@ -134,6 +140,7 @@ class DocumentRepository:
             .where(Document.owner_id == owner_id)
             .where(search_filter)
             .order_by(
+                rank.desc(),
                 Document.created_at.desc(),
                 Document.id.desc(),
                 DocumentChunk.position,

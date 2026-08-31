@@ -28,5 +28,8 @@ def test_alembic_migrations_generate_document_schema_sql() -> None:
     assert "processing_error" in result.stdout
     assert "status" in result.stdout
     assert "ix_documents_owner_id" in result.stdout
+    assert "ix_document_chunks_text_fts" in result.stdout
+    assert "ix_documents_filename_fts" in result.stdout
+    assert "USING gin" in result.stdout
     assert "CREATE TABLE document_chunks" in result.stdout
     assert "FOREIGN KEY(document_id) REFERENCES documents" in result.stdout
