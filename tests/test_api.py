@@ -202,6 +202,7 @@ def test_frontend_index_is_served(client: TestClient) -> None:
     assert "text/html" in response.headers["content-type"]
     assert "<title>StudyGraph</title>" in response.text
     assert 'id="app"' in response.text
+    assert 'id="owner-input"' in response.text
 
 
 def test_frontend_static_assets_are_served(client: TestClient) -> None:
@@ -211,6 +212,7 @@ def test_frontend_static_assets_are_served(client: TestClient) -> None:
     assert "javascript" in response.headers["content-type"]
     assert "refreshDocuments" in response.text
     assert "requestNoContent" in response.text
+    assert "X-StudyGraph-User" in response.text
 
 
 def test_health_check_reports_configured_database(

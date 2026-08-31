@@ -19,7 +19,7 @@ Current milestone:
   PostgreSQL full text search
 - Store page numbers for chunks so search and RAG context can cite source pages
 - Use a minimal browser UI for uploading, browsing, searching, and deleting
-  documents
+  documents with selectable local owner context
 - Build source-grounded retrieval context for future RAG features
 - Scope document access by owner through an `X-StudyGraph-User` request header
 - Keep document processing in a worker-ready service boundary instead of inside

@@ -21,9 +21,21 @@
             <p id="health-status">Checking system status</p>
           </div>
         </div>
-        <button id="refresh-button" class="icon-button" type="button" title="Refresh">
-          Refresh
-        </button>
+        <div class="topbar-actions">
+          <label class="owner-control">
+            <span>Owner</span>
+            <input
+              id="owner-input"
+              type="text"
+              maxlength="120"
+              autocomplete="username"
+              spellcheck="false"
+            >
+          </label>
+          <button id="refresh-button" class="icon-button" type="button" title="Refresh">
+            Refresh
+          </button>
+        </div>
       </header>
 
       <main class="workspace">

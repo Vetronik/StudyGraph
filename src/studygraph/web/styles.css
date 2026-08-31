@@ -63,6 +63,34 @@ button:disabled {
   background: #ffffff;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.owner-control {
+  display: grid;
+  gap: 4px;
+  min-width: 220px;
+}
+
+.owner-control span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.owner-control input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0 10px;
+  color: var(--text);
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -388,6 +416,11 @@ h2 {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topbar-actions,
+  .owner-control {
+    width: 100%;
   }
 
   .workspace {

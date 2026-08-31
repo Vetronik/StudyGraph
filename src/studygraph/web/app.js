@@ -1,7 +1,9 @@
 const state = {
   documents: [],
+  ownerId: localStorage.getItem("studygraph.ownerId") || "local-user",
   selectedDocumentId: null,
 };
+const OWNER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,119}$/;
 
 const elements = {
   chunkList: document.querySelector("#chunk-list"),
@@ -11,6 +13,7 @@ const elements = {
   documentList: document.querySelector("#document-list"),
   healthStatus: document.querySelector("#health-status"),
   notice: document.querySelector("#notice"),
+  ownerInput: document.querySelector("#owner-input"),
   pdfInput: document.querySelector("#pdf-input"),
   refreshButton: document.querySelector("#refresh-button"),
   searchCount: document.querySelector("#search-count"),
@@ -32,7 +35,7 @@ class ApiError extends Error {
 }
 
 async function requestJson(url, options = {}) {
-  const response = await fetch(url, options);
+  const response = await fetch(url, withOwnerHeader(options));
   const body = await response.json().catch(() => null);
 
   if (!response.ok) {
@@ -43,12 +46,22 @@ async function requestJson(url, options = {}) {
 }
 
 async function requestNoContent(url, options = {}) {
-  const response = await fetch(url, options);
+  const response = await fetch(url, withOwnerHeader(options));
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new ApiError(response.status, body);
   }
+}
+
+function withOwnerHeader(options = {}) {
+  const headers = new Headers(options.headers || {});
+  headers.set("X-StudyGraph-User", state.ownerId);
+
+  return {
+    ...options,
+    headers,
+  };
 }
 
 function getErrorMessage(error) {
@@ -112,6 +125,11 @@ async function refreshHealth() {
   } catch {
     elements.healthStatus.textContent = "API status unavailable";
   }
+}
+
+async function refreshWorkspace() {
+  await refreshHealth();
+  await refreshDocuments();
 }
 
 async function refreshDocuments() {
@@ -359,14 +377,39 @@ async function handleDelete() {
 elements.uploadForm.addEventListener("submit", handleUpload);
 elements.searchForm.addEventListener("submit", handleSearch);
 elements.refreshButton.addEventListener("click", async () => {
-  await refreshHealth();
-  await refreshDocuments().catch((error) => showNotice(getErrorMessage(error), "error"));
+  await refreshWorkspace().catch((error) => {
+    showNotice(getErrorMessage(error), "error");
+  });
 });
 elements.deleteButton.addEventListener("click", handleDelete);
 elements.pdfInput.addEventListener("change", () => {
   elements.selectedFileName.textContent =
     elements.pdfInput.files[0]?.name ?? "Select PDF";
 });
+elements.ownerInput.value = state.ownerId;
+elements.ownerInput.addEventListener("change", async () => {
+  const ownerId = elements.ownerInput.value.trim();
 
-refreshHealth();
-refreshDocuments().catch((error) => showNotice(getErrorMessage(error), "error"));
+  if (!ownerId) {
+    elements.ownerInput.value = state.ownerId;
+    showNotice("Owner must not be empty.", "error");
+    return;
+  }
+
+  if (!OWNER_ID_PATTERN.test(ownerId)) {
+    elements.ownerInput.value = state.ownerId;
+    showNotice("Owner contains invalid characters.", "error");
+    return;
+  }
+
+  state.ownerId = ownerId;
+  localStorage.setItem("studygraph.ownerId", ownerId);
+  clearSelection();
+  elements.searchResults.replaceChildren();
+  elements.searchCount.textContent = "0 results";
+  await refreshWorkspace().catch((error) => {
+    showNotice(getErrorMessage(error), "error");
+  });
+});
+
+refreshWorkspace().catch((error) => showNotice(getErrorMessage(error), "error"));
