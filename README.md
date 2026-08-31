@@ -17,6 +17,7 @@ Current milestone:
 - Track document processing status and failed processing attempts
 - Search stored document chunks through a dedicated API endpoint backed by
   PostgreSQL full text search
+- Store page numbers for chunks so search and RAG context can cite source pages
 - Use a minimal browser UI for uploading, browsing, searching, and deleting
   documents
 - Build source-grounded retrieval context for future RAG features
@@ -159,12 +160,13 @@ document.
 Use `GET /search?query=...` to search stored document chunks. On PostgreSQL,
 the endpoint uses full text search indexes for chunk text and document
 filenames. The response contains matching chunk text, a compact snippet,
-pagination metadata, and the source document ID and filename.
+pagination metadata, and the source document ID, filename, and page number.
 
 Use `POST /rag/context` with a JSON body such as
 `{"query": "derivatives", "max_chunks": 5}` to build a source-grounded context
 block from matching chunks. This endpoint prepares retrieval context for future
-RAG usage, but it does not call an LLM or generate an answer.
+RAG usage, including document and page references, but it does not call an LLM
+or generate an answer.
 
 Use `DELETE /documents/{document_id}` to remove a stored document.
 

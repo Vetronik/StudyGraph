@@ -75,6 +75,12 @@ class DocumentChunk(Base):
         index=True,
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
+    page_number: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
     text: Mapped[str] = mapped_column(Text, nullable=False)
     character_count: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

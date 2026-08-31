@@ -16,6 +16,7 @@ class RetrievalSource:
     document_filename: str
     chunk_id: int
     chunk_position: int
+    page_number: int
     text: str
 
 
@@ -68,6 +69,7 @@ class RetrievalService:
             document_filename=chunk.document.filename,
             chunk_id=chunk.id,
             chunk_position=chunk.position,
+            page_number=chunk.page_number,
             text=chunk.text,
         )
 
@@ -75,7 +77,8 @@ class RetrievalService:
         return "\n\n".join(
             (
                 f"[source {source.source_number}] "
-                f"{source.document_filename}, chunk {source.chunk_position + 1}\n"
+                f"{source.document_filename}, page {source.page_number}, "
+                f"chunk {source.chunk_position + 1}\n"
                 f"{source.text}"
             )
             for source in sources

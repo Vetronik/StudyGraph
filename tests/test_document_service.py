@@ -8,6 +8,13 @@ from studygraph.document_service import (
     DocumentReadError,
     DocumentService,
 )
+from studygraph.pdf_text_extractor import ExtractedPdfDocument, ExtractedPdfPage
+
+
+class RecordingDocumentRepository:
+    def add(self, document: Document) -> Document:
+        document.id = 1
+        return document
 
 
 class FailingDocumentRepository:
@@ -75,3 +82,26 @@ def test_delete_document_wraps_document_lookup_errors() -> None:
 
     with pytest.raises(DocumentDeletionError, match="Could not delete document"):
         service.delete_document(1)
+
+
+def test_create_document_preserves_chunk_page_numbers() -> None:
+    service = DocumentService(RecordingDocumentRepository())
+
+    document = service.create_document(
+        filename="lecture.pdf",
+        extracted_document=ExtractedPdfDocument(
+            text="First page text\n\nSecond page text",
+            page_count=2,
+            pages=(
+                ExtractedPdfPage(page_number=1, text="First page text"),
+                ExtractedPdfPage(page_number=2, text="Second page text"),
+            ),
+        ),
+    )
+
+    assert [chunk.position for chunk in document.chunks] == [0, 1]
+    assert [chunk.page_number for chunk in document.chunks] == [1, 2]
+    assert [chunk.text for chunk in document.chunks] == [
+        "First page text",
+        "Second page text",
+    ]

@@ -85,6 +85,7 @@ def test_document_repository_saves_and_lists_document_chunks(
     )
 
     assert [chunk.position for chunk in chunks] == [0, 1]
+    assert [chunk.page_number for chunk in chunks] == [1, 1]
     assert [chunk.document_id for chunk in chunks] == [
         saved_document.id,
         saved_document.id,

@@ -33,6 +33,9 @@ class InMemoryDocumentRepository:
             if chunk.document_id is None:
                 chunk.document_id = document.id
 
+            if chunk.page_number is None:
+                chunk.page_number = 1
+
             chunk.document = document
 
             if chunk.created_at is None:
@@ -397,6 +400,7 @@ def test_list_document_chunks_returns_chunks_for_existing_document(
                 "id": 1,
                 "document_id": document_id,
                 "position": 0,
+                "page_number": 1,
                 "text": text,
                 "character_count": len(text),
                 "created_at": "2026-08-15T12:00:00Z",
@@ -617,6 +621,7 @@ def test_search_document_chunks_returns_matching_chunks(
     assert response_data["query"] == "derivatives"
     assert response_data["items"][0]["document_filename"] == "calculus.pdf"
     assert response_data["items"][0]["chunk_position"] == 0
+    assert response_data["items"][0]["page_number"] == 1
     assert response_data["items"][0]["text"] == "Chain rule and derivatives"
     assert response_data["items"][0]["snippet"] == "Chain rule and derivatives"
 
@@ -779,9 +784,10 @@ def test_build_rag_context_returns_source_grounded_context(
     assert len(response_data["sources"]) == 1
     assert response_data["sources"][0]["source_number"] == 1
     assert response_data["sources"][0]["document_filename"] == "calculus.pdf"
+    assert response_data["sources"][0]["page_number"] == 1
     assert response_data["sources"][0]["text"] == "Chain rule and derivatives"
     assert response_data["context"] == (
-        "[source 1] calculus.pdf, chunk 1\n"
+        "[source 1] calculus.pdf, page 1, chunk 1\n"
         "Chain rule and derivatives"
     )
 

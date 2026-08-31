@@ -10,9 +10,16 @@ class PdfTextExtractionError(Exception):
 
 
 @dataclass(frozen=True)
+class ExtractedPdfPage:
+    page_number: int
+    text: str
+
+
+@dataclass(frozen=True)
 class ExtractedPdfDocument:
     text: str
     page_count: int
+    pages: tuple[ExtractedPdfPage, ...] = ()
 
 
 def extract_pdf_document(pdf_path: Path) -> ExtractedPdfDocument:
@@ -30,7 +37,7 @@ def extract_pdf_document(pdf_path: Path) -> ExtractedPdfDocument:
     except (PdfReadError, OSError) as error:
         raise PdfTextExtractionError(f"Could not read PDF: {error}") from error
 
-    page_texts: list[str] = []
+    pages: list[ExtractedPdfPage] = []
     page_count = len(reader.pages)
 
     for page_number, page in enumerate(reader.pages, start=1):
@@ -42,16 +49,25 @@ def extract_pdf_document(pdf_path: Path) -> ExtractedPdfDocument:
             ) from error
 
         if page_text.strip():
-            page_texts.append(page_text.strip())
+            pages.append(
+                ExtractedPdfPage(
+                    page_number=page_number,
+                    text=page_text.strip(),
+                )
+            )
 
-    extracted_text = "\n\n".join(page_texts)
+    extracted_text = "\n\n".join(page.text for page in pages)
 
     if not extracted_text:
         raise PdfTextExtractionError(
             "No text could be extracted. The PDF may contain scanned images only."
         )
 
-    return ExtractedPdfDocument(text=extracted_text, page_count=page_count)
+    return ExtractedPdfDocument(
+        text=extracted_text,
+        page_count=page_count,
+        pages=tuple(pages),
+    )
 
 
 def extract_text_from_pdf(pdf_path: Path) -> str:

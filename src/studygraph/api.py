@@ -80,6 +80,7 @@ class DocumentChunkResponse(BaseModel):
     id: int
     document_id: int
     position: int
+    page_number: int
     text: str
     character_count: int
     created_at: datetime
@@ -106,6 +107,7 @@ class SearchResultResponse(BaseModel):
     document_filename: str
     chunk_id: int
     chunk_position: int
+    page_number: int
     text: str
     snippet: str
     character_count: int
@@ -131,6 +133,7 @@ class RetrievalSourceResponse(BaseModel):
     document_filename: str
     chunk_id: int
     chunk_position: int
+    page_number: int
     text: str
 
 
@@ -193,6 +196,7 @@ def _build_document_chunk_response(chunk: DocumentChunk) -> DocumentChunkRespons
         id=chunk.id,
         document_id=chunk.document_id,
         position=chunk.position,
+        page_number=chunk.page_number,
         text=chunk.text,
         character_count=chunk.character_count,
         created_at=chunk.created_at,
@@ -232,6 +236,7 @@ def _build_search_result_response(
         document_filename=chunk.document.filename,
         chunk_id=chunk.id,
         chunk_position=chunk.position,
+        page_number=chunk.page_number,
         text=chunk.text,
         snippet=_build_search_snippet(chunk.text, query),
         character_count=chunk.character_count,
@@ -591,6 +596,7 @@ def build_rag_context(
                 document_filename=source.document_filename,
                 chunk_id=source.chunk_id,
                 chunk_position=source.chunk_position,
+                page_number=source.page_number,
                 text=source.text,
             )
             for source in retrieval_context.sources

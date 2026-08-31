@@ -3,7 +3,7 @@ from typing import Protocol
 
 from studygraph.document_model import Document, DocumentChunk
 from studygraph.document_repository import DocumentRepositoryError
-from studygraph.pdf_text_extractor import ExtractedPdfDocument
+from studygraph.pdf_text_extractor import ExtractedPdfDocument, ExtractedPdfPage
 from studygraph.text_chunker import chunk_text
 
 
@@ -94,6 +94,39 @@ class DocumentRepositoryProtocol(Protocol):
     ) -> tuple[list[DocumentChunk], int]: ...
 
 
+def _iter_extractable_pages(
+    extracted_document: ExtractedPdfDocument,
+) -> tuple[ExtractedPdfPage, ...]:
+    if extracted_document.pages:
+        return extracted_document.pages
+
+    return (
+        ExtractedPdfPage(
+            page_number=1,
+            text=extracted_document.text,
+        ),
+    )
+
+
+def _build_document_chunks(
+    extracted_document: ExtractedPdfDocument,
+) -> list[DocumentChunk]:
+    chunks: list[DocumentChunk] = []
+
+    for page in _iter_extractable_pages(extracted_document):
+        for chunk in chunk_text(page.text):
+            chunks.append(
+                DocumentChunk(
+                    position=len(chunks),
+                    page_number=page.page_number,
+                    text=chunk.text,
+                    character_count=chunk.character_count,
+                )
+            )
+
+    return chunks
+
+
 class DocumentService:
     def __init__(
         self,
@@ -142,14 +175,7 @@ class DocumentService:
             status=DOCUMENT_STATUS_PROCESSED,
             processing_error=None,
         )
-        document.chunks = [
-            DocumentChunk(
-                position=chunk.position,
-                text=chunk.text,
-                character_count=chunk.character_count,
-            )
-            for chunk in chunk_text(extracted_document.text)
-        ]
+        document.chunks = _build_document_chunks(extracted_document)
 
         try:
             return self._repository.add(document)
@@ -185,14 +211,7 @@ class DocumentService:
         document.extracted_text = extracted_document.text
         document.status = DOCUMENT_STATUS_PROCESSED
         document.processing_error = None
-        document.chunks = [
-            DocumentChunk(
-                position=chunk.position,
-                text=chunk.text,
-                character_count=chunk.character_count,
-            )
-            for chunk in chunk_text(extracted_document.text)
-        ]
+        document.chunks = _build_document_chunks(extracted_document)
 
         try:
             return self._repository.update(document)

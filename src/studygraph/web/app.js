@@ -240,7 +240,7 @@ function renderChunks(chunks) {
     const header = createTextElement(
       "div",
       "chunk-header",
-      `Chunk ${chunk.position + 1} | ${formatNumber(chunk.character_count)} chars`
+      `Page ${chunk.page_number} | Chunk ${chunk.position + 1} | ${formatNumber(chunk.character_count)} chars`
     );
     const text = createTextElement("div", "chunk-text", chunk.text);
     item.append(header, text);
@@ -329,7 +329,7 @@ function renderSearchResults(results) {
       createTextElement(
         "div",
         "item-meta",
-        `Chunk ${result.chunk_position + 1} | ${formatNumber(result.character_count)} chars`
+        `Page ${result.page_number} | Chunk ${result.chunk_position + 1} | ${formatNumber(result.character_count)} chars`
       ),
       createTextElement("div", "result-snippet", result.snippet)
     );
