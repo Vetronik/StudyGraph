@@ -24,6 +24,8 @@ Current milestone:
 - Scope document access by owner through an `X-StudyGraph-User` request header
 - Keep document processing in a worker-ready service boundary instead of inside
   the API route
+- Provide an embedding provider interface with a deterministic local provider
+  for tests and future pgvector integration
 
 No real authentication or AI answer generation are included yet.
 
@@ -174,6 +176,12 @@ Use `POST /rag/context` with a JSON body such as
 block from matching chunks. This endpoint prepares retrieval context for future
 RAG usage, including document and page references, but it does not call an LLM
 or generate an answer.
+
+The codebase includes an embedding provider interface and a deterministic local
+hash-based provider for tests and development. It is not intended to replace
+real semantic embeddings. A future pgvector milestone can persist embeddings
+for `document_chunks` once the provider, model name, and vector dimensions are
+chosen.
 
 Use `DELETE /documents/{document_id}` to remove a stored document.
 
