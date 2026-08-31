@@ -42,6 +42,15 @@ async function requestJson(url, options = {}) {
   return body;
 }
 
+async function requestNoContent(url, options = {}) {
+  const response = await fetch(url, options);
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new ApiError(response.status, body);
+  }
+}
+
 function getErrorMessage(error) {
   if (error instanceof ApiError) {
     const detail = error.body?.detail;
@@ -337,7 +346,7 @@ async function handleDelete() {
   elements.deleteButton.disabled = true;
 
   try {
-    await fetch(`/documents/${documentId}`, { method: "DELETE" });
+    await requestNoContent(`/documents/${documentId}`, { method: "DELETE" });
     clearSelection();
     await refreshDocuments();
     showNotice("Document deleted.", "success");

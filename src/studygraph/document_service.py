@@ -218,10 +218,13 @@ class DocumentService:
             ) from error
 
     def get_document(self, document_id: int) -> Document:
-        document = self._repository.get_by_id(
-            document_id,
-            owner_id=self._owner_id,
-        )
+        try:
+            document = self._repository.get_by_id(
+                document_id,
+                owner_id=self._owner_id,
+            )
+        except DocumentRepositoryError as error:
+            raise DocumentReadError("Could not load document.") from error
 
         if document is None:
             raise DocumentNotFoundError(
@@ -231,10 +234,13 @@ class DocumentService:
         return document
 
     def list_document_chunks(self, document_id: int) -> DocumentChunkList:
-        document = self._repository.get_by_id(
-            document_id,
-            owner_id=self._owner_id,
-        )
+        try:
+            document = self._repository.get_by_id(
+                document_id,
+                owner_id=self._owner_id,
+            )
+        except DocumentRepositoryError as error:
+            raise DocumentReadError("Could not load document.") from error
 
         if document is None:
             raise DocumentNotFoundError(
@@ -252,10 +258,13 @@ class DocumentService:
         return DocumentChunkList(chunks=chunks)
 
     def delete_document(self, document_id: int) -> None:
-        document = self._repository.get_by_id(
-            document_id,
-            owner_id=self._owner_id,
-        )
+        try:
+            document = self._repository.get_by_id(
+                document_id,
+                owner_id=self._owner_id,
+            )
+        except DocumentRepositoryError as error:
+            raise DocumentDeletionError("Could not delete document.") from error
 
         if document is None:
             raise DocumentNotFoundError(

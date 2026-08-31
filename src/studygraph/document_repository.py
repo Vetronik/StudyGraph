@@ -48,7 +48,10 @@ class DocumentRepository:
             Document.owner_id == owner_id,
         )
 
-        return self._session.scalar(statement)
+        try:
+            return self._session.scalar(statement)
+        except SQLAlchemyError as error:
+            raise DocumentRepositoryError("Could not load document.") from error
 
     def list_chunks(self, document_id: int, *, owner_id: str) -> list[DocumentChunk]:
         statement = (

@@ -294,7 +294,7 @@ async def _save_upload_to_temporary_pdf(
                     )
 
                 temporary_file.write(chunk)
-    except UploadTooLargeError:
+    except Exception:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
         raise
@@ -335,6 +335,11 @@ def _mark_document_failed(
             error_message=error_message,
         )
     except DocumentStorageError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not save document failure state.",
+        ) from error
+    except DocumentReadError as error:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not save document failure state.",
@@ -454,6 +459,11 @@ async def create_document(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not save document.",
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not load document.",
         ) from error
     finally:
         await file.close()
@@ -634,6 +644,11 @@ def get_document(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not load document.",
         ) from error
 
     return _build_document_response(document)

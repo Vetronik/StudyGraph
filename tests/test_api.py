@@ -14,6 +14,7 @@ from studygraph.config import (
     MAX_UPLOAD_BYTES_ENV_VAR,
 )
 from studygraph.document_model import Document, DocumentChunk
+from studygraph.document_repository import DocumentRepositoryError
 from studygraph.document_service import DEFAULT_OWNER_ID, DocumentService
 
 
@@ -135,6 +136,11 @@ class InMemoryDocumentRepository:
         return len(self._documents)
 
 
+class FailingDocumentReadRepository(InMemoryDocumentRepository):
+    def get_by_id(self, document_id: int, *, owner_id: str) -> Document | None:
+        raise DocumentRepositoryError("Database read failed.")
+
+
 @pytest.fixture
 def document_repository() -> InMemoryDocumentRepository:
     return InMemoryDocumentRepository()
@@ -199,6 +205,7 @@ def test_frontend_static_assets_are_served(client: TestClient) -> None:
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
     assert "refreshDocuments" in response.text
+    assert "requestNoContent" in response.text
 
 
 def test_health_check_reports_configured_database(
@@ -343,6 +350,22 @@ def test_get_document_returns_404_for_unknown_id(client: TestClient) -> None:
     assert response.json() == {
         "detail": "Document with id 999 was not found."
     }
+
+
+def test_get_document_returns_500_when_document_read_fails() -> None:
+    def override_document_service() -> DocumentService:
+        return DocumentService(FailingDocumentReadRepository())
+
+    app.dependency_overrides[get_document_service] = override_document_service
+
+    try:
+        with TestClient(app, raise_server_exceptions=False) as test_client:
+            response = test_client.get("/documents/1")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Could not load document."}
 
 
 def test_list_document_chunks_returns_chunks_for_existing_document(
