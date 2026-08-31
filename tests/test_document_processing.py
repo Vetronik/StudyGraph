@@ -1,0 +1,107 @@
+from collections.abc import Callable
+from pathlib import Path
+
+import pytest
+
+from studygraph.document_model import Document
+from studygraph.document_processing import (
+    DocumentProcessingFailed,
+    DocumentProcessingLimits,
+    process_pending_document,
+)
+
+
+class RecordingDocumentService:
+    def __init__(self) -> None:
+        self.failed_document_id: int | None = None
+        self.failure_message: str | None = None
+        self.processed_document_id: int | None = None
+
+    def process_document(
+        self,
+        document_id: int,
+        *,
+        extracted_document,
+        max_pages: int,
+        max_characters: int,
+    ) -> Document:
+        self.processed_document_id = document_id
+        return Document(
+            id=document_id,
+            filename="lecture.pdf",
+            owner_id="local-user",
+            file_size_bytes=100,
+            page_count=extracted_document.page_count,
+            character_count=len(extracted_document.text),
+            extracted_text=extracted_document.text,
+            status="processed",
+            processing_error=None,
+        )
+
+    def mark_document_failed(
+        self,
+        document_id: int,
+        *,
+        error_message: str,
+    ) -> Document:
+        self.failed_document_id = document_id
+        self.failure_message = error_message
+        return Document(
+            id=document_id,
+            filename="lecture.pdf",
+            owner_id="local-user",
+            file_size_bytes=100,
+            page_count=0,
+            character_count=0,
+            extracted_text="",
+            status="failed",
+            processing_error=error_message,
+        )
+
+
+def test_process_pending_document_processes_valid_pdf(
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    service = RecordingDocumentService()
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(pdf_path, "StudyGraph extracts text")
+
+    document = process_pending_document(
+        service,
+        document_id=7,
+        pdf_path=pdf_path,
+        limits=DocumentProcessingLimits(
+            max_pages=10,
+            max_characters=1000,
+        ),
+    )
+
+    assert document.id == 7
+    assert document.status == "processed"
+    assert service.processed_document_id == 7
+    assert service.failed_document_id is None
+
+
+def test_process_pending_document_marks_failed_pdf(
+    tmp_path: Path,
+) -> None:
+    service = RecordingDocumentService()
+    pdf_path = tmp_path / "broken.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\nThis is not a valid PDF structure.")
+
+    with pytest.raises(DocumentProcessingFailed) as error:
+        process_pending_document(
+            service,
+            document_id=8,
+            pdf_path=pdf_path,
+            limits=DocumentProcessingLimits(
+                max_pages=10,
+                max_characters=1000,
+            ),
+        )
+
+    assert error.value.document_id == 8
+    assert service.failed_document_id == 8
+    assert service.failure_message is not None
+    assert service.failure_message.startswith("Could not read PDF:")

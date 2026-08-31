@@ -22,6 +22,8 @@ Current milestone:
   documents
 - Build source-grounded retrieval context for future RAG features
 - Scope document access by owner through an `X-StudyGraph-User` request header
+- Keep document processing in a worker-ready service boundary instead of inside
+  the API route
 
 No real authentication or AI answer generation are included yet.
 

@@ -32,17 +32,21 @@ from studygraph.config import (
 )
 from studygraph.database import get_session
 from studygraph.document_model import Document, DocumentChunk
+from studygraph.document_processing import (
+    DocumentProcessingFailed,
+    DocumentProcessingLimits,
+    DocumentProcessingStateError,
+    process_pending_document,
+)
 from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import (
     DocumentDeletionError,
     DocumentNotFoundError,
-    DocumentProcessingLimitError,
     DocumentReadError,
     DocumentSearchQueryError,
     DocumentService,
     DocumentStorageError,
 )
-from studygraph.pdf_text_extractor import PdfTextExtractionError, extract_pdf_document
 from studygraph.retrieval_service import RetrievalService
 
 TEXT_PREVIEW_MAX_CHARACTERS = 300
@@ -334,32 +338,6 @@ def _validate_pdf_header(pdf_path: Path) -> None:
         raise UploadContentError("Uploaded file content is not a PDF.")
 
 
-def _mark_document_failed(
-    document_service: DocumentService,
-    document: Document | None,
-    *,
-    error_message: str,
-) -> None:
-    if document is None:
-        return
-
-    try:
-        document_service.mark_document_failed(
-            document.id,
-            error_message=error_message,
-        )
-    except DocumentStorageError as error:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not save document failure state.",
-        ) from error
-    except DocumentReadError as error:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not save document failure state.",
-        ) from error
-
-
 @app.get(
     "/",
     response_class=HTMLResponse,
@@ -426,12 +404,14 @@ async def create_document(
             filename=filename,
             file_size_bytes=saved_upload.size_bytes,
         )
-        extracted_document = extract_pdf_document(saved_upload.path)
-        document = document_service.process_document(
-            document.id,
-            extracted_document=extracted_document,
-            max_pages=get_max_document_pages(),
-            max_characters=get_max_document_characters(),
+        document = process_pending_document(
+            document_service,
+            document_id=document.id,
+            pdf_path=saved_upload.path,
+            limits=DocumentProcessingLimits(
+                max_pages=get_max_document_pages(),
+                max_characters=get_max_document_characters(),
+            ),
         )
     except UploadTooLargeError as error:
         raise HTTPException(
@@ -443,30 +423,12 @@ async def create_document(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error),
         ) from error
-    except PdfTextExtractionError as error:
-        _mark_document_failed(
-            document_service,
-            document,
-            error_message=str(error),
-        )
+    except DocumentProcessingFailed as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
-                "message": f"Could not process PDF: {error}",
-                "document_id": document.id if document is not None else None,
-            },
-        ) from error
-    except DocumentProcessingLimitError as error:
-        _mark_document_failed(
-            document_service,
-            document,
-            error_message=str(error),
-        )
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "message": f"Could not process PDF: {error}",
-                "document_id": document.id if document is not None else None,
+                "message": f"Could not process PDF: {error.message}",
+                "document_id": error.document_id,
             },
         ) from error
     except DocumentStorageError as error:
@@ -474,10 +436,10 @@ async def create_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not save document.",
         ) from error
-    except DocumentReadError as error:
+    except DocumentProcessingStateError as error:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not load document.",
+            detail="Could not save document processing state.",
         ) from error
     finally:
         await file.close()

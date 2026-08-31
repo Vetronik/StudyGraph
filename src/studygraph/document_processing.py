@@ -1,0 +1,75 @@
+from dataclasses import dataclass
+from pathlib import Path
+
+from studygraph.document_model import Document
+from studygraph.document_service import (
+    DocumentProcessingLimitError,
+    DocumentReadError,
+    DocumentService,
+    DocumentStorageError,
+)
+from studygraph.pdf_text_extractor import PdfTextExtractionError, extract_pdf_document
+
+
+@dataclass(frozen=True)
+class DocumentProcessingLimits:
+    max_pages: int
+    max_characters: int
+
+
+class DocumentProcessingFailed(Exception):
+    """Raised when a pending document was processed but could not succeed."""
+
+    def __init__(self, document_id: int, message: str) -> None:
+        super().__init__(message)
+        self.document_id = document_id
+        self.message = message
+
+
+class DocumentProcessingStateError(Exception):
+    """Raised when document processing state cannot be persisted."""
+
+
+def process_pending_document(
+    document_service: DocumentService,
+    *,
+    document_id: int,
+    pdf_path: Path,
+    limits: DocumentProcessingLimits,
+) -> Document:
+    try:
+        extracted_document = extract_pdf_document(pdf_path)
+        return document_service.process_document(
+            document_id,
+            extracted_document=extracted_document,
+            max_pages=limits.max_pages,
+            max_characters=limits.max_characters,
+        )
+    except (PdfTextExtractionError, DocumentProcessingLimitError) as error:
+        _mark_document_failed(
+            document_service,
+            document_id=document_id,
+            error_message=str(error),
+        )
+        raise DocumentProcessingFailed(document_id, str(error)) from error
+    except (DocumentReadError, DocumentStorageError) as error:
+        raise DocumentProcessingStateError(
+            "Could not persist document processing state."
+        ) from error
+
+
+def _mark_document_failed(
+    document_service: DocumentService,
+    *,
+    document_id: int,
+    error_message: str,
+) -> None:
+    try:
+        document_service.mark_document_failed(
+            document_id,
+            error_message=error_message,
+        )
+    except (DocumentReadError, DocumentStorageError) as error:
+        raise DocumentProcessingStateError(
+            "Could not persist document failure state."
+        ) from error
