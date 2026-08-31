@@ -15,7 +15,8 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -49,12 +50,14 @@ PDF_CONTENT_TYPES = {
     "application/pdf",
     "application/x-pdf",
 }
+WEB_DIR = Path(__file__).resolve().parent / "web"
 
 app = FastAPI(
     title="StudyGraph API",
     description="Minimal API for extracting text information from uploaded PDFs.",
     version="0.1.0",
 )
+app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 
 class DocumentResponse(BaseModel):
@@ -284,6 +287,16 @@ def _mark_document_failed(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not save document failure state.",
         ) from error
+
+
+@app.get(
+    "/",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+def frontend_index() -> HTMLResponse:
+    index_path = WEB_DIR / "index.html"
+    return HTMLResponse(index_path.read_text(encoding="utf-8"))
 
 
 @app.get(

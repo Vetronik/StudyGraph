@@ -16,8 +16,10 @@ Current milestone:
 - Validate PDF uploads with configurable size and content limits
 - Track document processing status and failed processing attempts
 - Search stored document chunks through a dedicated API endpoint
+- Use a minimal browser UI for uploading, browsing, searching, and deleting
+  documents
 
-No frontend, user accounts, Docker setup, or AI features are included yet.
+No user accounts, Docker setup, or AI features are included yet.
 
 ## Requirements
 
@@ -87,6 +89,12 @@ Start the local FastAPI server:
 
 ```powershell
 python -m uvicorn studygraph.api:app --reload
+```
+
+Open the browser UI:
+
+```text
+http://127.0.0.1:8000/
 ```
 
 Open the automatically generated API documentation:

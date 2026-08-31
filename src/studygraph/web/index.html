@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>StudyGraph</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script defer src="/static/app.js"></script>
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div>
+            <h1>StudyGraph</h1>
+            <p id="health-status">Checking system status</p>
+          </div>
+        </div>
+        <button id="refresh-button" class="icon-button" type="button" title="Refresh">
+          Refresh
+        </button>
+      </header>
+
+      <main class="workspace">
+        <section class="panel upload-panel" aria-labelledby="upload-title">
+          <div class="panel-heading">
+            <h2 id="upload-title">Upload</h2>
+            <span id="upload-state" class="status-badge status-idle">Idle</span>
+          </div>
+          <form id="upload-form" class="upload-form">
+            <label class="file-input">
+              <span id="selected-file-name">Select PDF</span>
+              <input id="pdf-input" name="file" type="file" accept="application/pdf,.pdf">
+            </label>
+            <button id="upload-button" class="primary-button" type="submit">
+              Upload
+            </button>
+          </form>
+          <p id="notice" class="notice" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="panel search-panel" aria-labelledby="search-title">
+          <div class="panel-heading">
+            <h2 id="search-title">Search</h2>
+            <span id="search-count" class="counter">0 results</span>
+          </div>
+          <form id="search-form" class="search-form">
+            <input
+              id="search-input"
+              type="search"
+              name="query"
+              placeholder="Search chunks"
+              autocomplete="off"
+            >
+            <button class="secondary-button" type="submit">Search</button>
+          </form>
+          <div id="search-results" class="result-list"></div>
+        </section>
+
+        <section class="panel documents-panel" aria-labelledby="documents-title">
+          <div class="panel-heading">
+            <h2 id="documents-title">Documents</h2>
+            <span id="document-count" class="counter">0 stored</span>
+          </div>
+          <div id="document-list" class="document-list"></div>
+        </section>
+
+        <section class="panel detail-panel" aria-labelledby="detail-title">
+          <div class="panel-heading">
+            <h2 id="detail-title">Details</h2>
+            <button id="delete-button" class="danger-button" type="button" disabled>
+              Delete
+            </button>
+          </div>
+          <div id="document-detail" class="document-detail empty-state">
+            No document selected
+          </div>
+          <div id="chunk-list" class="chunk-list"></div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

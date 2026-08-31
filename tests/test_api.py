@@ -150,6 +150,23 @@ def test_health_check_returns_api_status(
     }
 
 
+def test_frontend_index_is_served(client: TestClient) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "<title>StudyGraph</title>" in response.text
+    assert 'id="app"' in response.text
+
+
+def test_frontend_static_assets_are_served(client: TestClient) -> None:
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
+    assert "refreshDocuments" in response.text
+
+
 def test_health_check_reports_configured_database(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
