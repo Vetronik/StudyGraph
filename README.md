@@ -18,8 +18,9 @@ Current milestone:
 - Search stored document chunks through a dedicated API endpoint
 - Use a minimal browser UI for uploading, browsing, searching, and deleting
   documents
+- Build source-grounded retrieval context for future RAG features
 
-No user accounts or AI features are included yet.
+No user accounts or AI answer generation are included yet.
 
 ## Requirements
 
@@ -148,6 +149,11 @@ document.
 Use `GET /search?query=...` to search stored document chunks. The response
 contains matching chunk text, a compact snippet, pagination metadata, and the
 source document ID and filename.
+
+Use `POST /rag/context` with a JSON body such as
+`{"query": "derivatives", "max_chunks": 5}` to build a source-grounded context
+block from matching chunks. This endpoint prepares retrieval context for future
+RAG usage, but it does not call an LLM or generate an answer.
 
 Use `DELETE /documents/{document_id}` to remove a stored document.
 

@@ -17,7 +17,7 @@ from fastapi import (
 )
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from studygraph.config import (
@@ -40,6 +40,7 @@ from studygraph.document_service import (
     DocumentStorageError,
 )
 from studygraph.pdf_text_extractor import PdfTextExtractionError, extract_pdf_document
+from studygraph.retrieval_service import RetrievalService
 
 TEXT_PREVIEW_MAX_CHARACTERS = 300
 SEARCH_SNIPPET_CONTEXT_CHARACTERS = 80
@@ -114,6 +115,26 @@ class SearchResponse(BaseModel):
     limit: int
     offset: int
     query: str
+
+
+class RetrievalContextRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=200)
+    max_chunks: int = Field(default=5, ge=1, le=20)
+
+
+class RetrievalSourceResponse(BaseModel):
+    source_number: int
+    document_id: int
+    document_filename: str
+    chunk_id: int
+    chunk_position: int
+    text: str
+
+
+class RetrievalContextResponse(BaseModel):
+    query: str
+    sources: list[RetrievalSourceResponse]
+    context: str
 
 
 @dataclass(frozen=True)
@@ -218,6 +239,12 @@ def get_document_service(
     session: Annotated[Session, Depends(get_session)],
 ) -> DocumentService:
     return DocumentService(DocumentRepository(session))
+
+
+def get_retrieval_service(
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+) -> RetrievalService:
+    return RetrievalService(document_service)
 
 
 async def _save_upload_to_temporary_pdf(
@@ -492,6 +519,48 @@ def search_document_chunks(
         limit=search_results.limit,
         offset=search_results.offset,
         query=search_results.query,
+    )
+
+
+@app.post(
+    "/rag/context",
+    response_model=RetrievalContextResponse,
+    status_code=status.HTTP_200_OK,
+)
+def build_rag_context(
+    request: RetrievalContextRequest,
+    retrieval_service: Annotated[RetrievalService, Depends(get_retrieval_service)],
+) -> RetrievalContextResponse:
+    try:
+        retrieval_context = retrieval_service.build_context(
+            query=request.query,
+            max_chunks=request.max_chunks,
+        )
+    except DocumentSearchQueryError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not build retrieval context.",
+        ) from error
+
+    return RetrievalContextResponse(
+        query=retrieval_context.query,
+        sources=[
+            RetrievalSourceResponse(
+                source_number=source.source_number,
+                document_id=source.document_id,
+                document_filename=source.document_filename,
+                chunk_id=source.chunk_id,
+                chunk_position=source.chunk_position,
+                text=source.text,
+            )
+            for source in retrieval_context.sources
+        ],
+        context=retrieval_context.context,
     )
 
 

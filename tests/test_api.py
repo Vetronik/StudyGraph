@@ -604,6 +604,78 @@ def test_search_document_chunks_rejects_blank_query(
     }
 
 
+def test_build_rag_context_returns_source_grounded_context(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    calculus_pdf_path = tmp_path / "calculus.pdf"
+    history_pdf_path = tmp_path / "history.pdf"
+    write_pdf_with_text(calculus_pdf_path, "Chain rule and derivatives")
+    write_pdf_with_text(history_pdf_path, "Roman empire overview")
+
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "calculus.pdf",
+                calculus_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "history.pdf",
+                history_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+
+    response = client.post(
+        "/rag/context",
+        json={"query": "derivatives", "max_chunks": 3},
+    )
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["query"] == "derivatives"
+    assert len(response_data["sources"]) == 1
+    assert response_data["sources"][0]["source_number"] == 1
+    assert response_data["sources"][0]["document_filename"] == "calculus.pdf"
+    assert response_data["sources"][0]["text"] == "Chain rule and derivatives"
+    assert response_data["context"] == (
+        "[source 1] calculus.pdf, chunk 1\n"
+        "Chain rule and derivatives"
+    )
+
+
+def test_build_rag_context_rejects_blank_query(client: TestClient) -> None:
+    response = client.post(
+        "/rag/context",
+        json={"query": "   ", "max_chunks": 3},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Search query must contain non-whitespace text."
+    }
+
+
+def test_build_rag_context_rejects_invalid_chunk_limit(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/rag/context",
+        json={"query": "derivatives", "max_chunks": 0},
+    )
+
+    assert response.status_code == 422
+
+
 def test_create_document_rejects_non_pdf_file(
     client: TestClient,
     document_repository: InMemoryDocumentRepository,
