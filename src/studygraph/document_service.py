@@ -6,6 +6,7 @@ from studygraph.document_repository import (
     DocumentDuplicateError,
     DocumentRepositoryError,
 )
+from studygraph.embedding_service import DeterministicHashEmbeddingProvider
 from studygraph.pdf_text_extractor import ExtractedPdfDocument, ExtractedPdfPage
 from studygraph.text_chunker import chunk_text
 
@@ -63,6 +64,15 @@ class DocumentSearchResultList:
     query: str
 
 
+@dataclass(frozen=True)
+class SemanticSearchResultList:
+    chunks: list[DocumentChunk]
+    total: int
+    limit: int
+    offset: int
+    query: str
+
+
 class DocumentRepositoryProtocol(Protocol):
     def add(self, document: Document) -> Document: ...
 
@@ -104,6 +114,15 @@ class DocumentRepositoryProtocol(Protocol):
         offset: int,
     ) -> tuple[list[DocumentChunk], int]: ...
 
+    def semantic_search_chunks(
+        self,
+        *,
+        owner_id: str,
+        query: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[DocumentChunk], int]: ...
+
 
 def _iter_extractable_pages(
     extracted_document: ExtractedPdfDocument,
@@ -123,15 +142,21 @@ def _build_document_chunks(
     extracted_document: ExtractedPdfDocument,
 ) -> list[DocumentChunk]:
     chunks: list[DocumentChunk] = []
+    embedding_provider = DeterministicHashEmbeddingProvider()
 
     for page in _iter_extractable_pages(extracted_document):
-        for chunk in chunk_text(page.text):
+        page_chunks = chunk_text(page.text)
+        embeddings = embedding_provider.embed_texts(
+            [chunk.text for chunk in page_chunks]
+        )
+        for chunk, embedding in zip(page_chunks, embeddings, strict=True):
             chunks.append(
                 DocumentChunk(
                     position=len(chunks),
                     page_number=page.page_number,
                     text=chunk.text,
                     character_count=chunk.character_count,
+                    embedding=list(embedding.vector),
                 )
             )
 
@@ -376,6 +401,37 @@ class DocumentService:
             raise DocumentReadError("Could not search document chunks.") from error
 
         return DocumentSearchResultList(
+            chunks=chunks,
+            total=total,
+            limit=limit,
+            offset=offset,
+            query=normalized_query,
+        )
+
+    def semantic_search_chunks(
+        self,
+        *,
+        query: str,
+        limit: int,
+        offset: int,
+    ) -> SemanticSearchResultList:
+        normalized_query = query.strip()
+        if not normalized_query:
+            raise DocumentSearchQueryError(
+                "Search query must contain non-whitespace text."
+            )
+
+        try:
+            chunks, total = self._repository.semantic_search_chunks(
+                owner_id=self._owner_id,
+                query=normalized_query,
+                limit=limit,
+                offset=offset,
+            )
+        except DocumentRepositoryError as error:
+            raise DocumentReadError("Could not search document embeddings.") from error
+
+        return SemanticSearchResultList(
             chunks=chunks,
             total=total,
             limit=limit,

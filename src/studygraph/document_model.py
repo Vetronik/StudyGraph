@@ -13,6 +13,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from studygraph.embedding_service import Vector
+
 
 class Base(DeclarativeBase):
     pass
@@ -104,6 +106,10 @@ class DocumentChunk(Base):
     )
     text: Mapped[str] = mapped_column(Text, nullable=False)
     character_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

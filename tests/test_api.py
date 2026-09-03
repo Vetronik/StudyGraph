@@ -30,6 +30,10 @@ from studygraph.document_repository import (
     DocumentRepositoryError,
 )
 from studygraph.document_service import DEFAULT_OWNER_ID, DocumentService
+from studygraph.embedding_service import (
+    DeterministicHashEmbeddingProvider,
+    cosine_similarity,
+)
 
 
 class InMemoryDocumentRepository:
@@ -167,6 +171,28 @@ class InMemoryDocumentRepository:
                 ):
                     chunks.append(chunk)
 
+        return chunks[offset : offset + limit], len(chunks)
+
+    def semantic_search_chunks(
+        self,
+        *,
+        owner_id: str,
+        query: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[DocumentChunk], int]:
+        query_vector = DeterministicHashEmbeddingProvider().embed_texts([query])[0]
+        chunks = [
+            chunk
+            for document in self._documents.values()
+            if document.owner_id == owner_id
+            for chunk in document.chunks
+            if chunk.embedding is not None
+        ]
+        chunks.sort(
+            key=lambda chunk: cosine_similarity(chunk.embedding, query_vector.vector),
+            reverse=True,
+        )
         return chunks[offset : offset + limit], len(chunks)
 
     def count(self) -> int:
@@ -718,6 +744,32 @@ def test_search_document_chunks_returns_matching_chunks(
     assert response_data["items"][0]["page_number"] == 1
     assert response_data["items"][0]["text"] == "Chain rule and derivatives"
     assert response_data["items"][0]["snippet"] == "Chain rule and derivatives"
+
+
+def test_semantic_search_returns_embedded_chunks(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "calculus.pdf"
+    write_pdf_with_text(pdf_path, "Chain rule and derivatives")
+
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "calculus.pdf",
+                pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+
+    response = client.get("/semantic-search?query=derivative mathematics")
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["document_filename"] == "calculus.pdf"
 
 
 def test_search_document_chunks_supports_pagination(

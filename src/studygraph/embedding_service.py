@@ -4,7 +4,41 @@ from hashlib import sha256
 from math import sqrt
 from typing import Protocol
 
+from sqlalchemy.types import UserDefinedType
+
 DEFAULT_EMBEDDING_DIMENSIONS = 64
+
+
+class Vector(UserDefinedType):
+    """SQLAlchemy type for PostgreSQL's pgvector extension."""
+
+    cache_ok = True
+
+    def __init__(self, dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS) -> None:
+        if dimensions <= 0:
+            raise ValueError("dimensions must be greater than 0.")
+        self.dimensions = dimensions
+
+    def get_col_spec(self, **_kwargs: object) -> str:
+        return f"VECTOR({self.dimensions})"
+
+    def bind_processor(self, _dialect):
+        def process(value):
+            if value is None:
+                return None
+            return "[" + ",".join(str(float(item)) for item in value) + "]"
+
+        return process
+
+    def result_processor(self, _dialect, _coltype):
+        def process(value):
+            if value is None:
+                return None
+            if isinstance(value, str):
+                return [float(item) for item in value.strip("[]()").split(",")]
+            return list(value)
+
+        return process
 
 
 @dataclass(frozen=True)

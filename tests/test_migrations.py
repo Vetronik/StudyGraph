@@ -39,4 +39,6 @@ def test_alembic_migrations_generate_document_schema_sql() -> None:
     assert "USING gin" in result.stdout
     assert "CREATE TABLE document_chunks" in result.stdout
     assert "page_number" in result.stdout
+    assert "embedding vector(64)" in result.stdout
+    assert "ix_document_chunks_embedding_cosine" in result.stdout
     assert "FOREIGN KEY(document_id) REFERENCES documents" in result.stdout

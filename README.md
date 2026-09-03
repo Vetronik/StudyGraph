@@ -19,6 +19,7 @@ learning progress in one workspace. 🚀
 - Page-aware text chunking with overlap
 - PostgreSQL full-text search with pagination and snippets
 - Source-grounded retrieval context with document and page references
+- Persistent chunk embeddings and pgvector semantic search
 - Persistent PDF storage with configurable storage directory
 - Asynchronous upload processing with `pending`, `processing`, `processed`, and `failed` states
 - Database locking to prevent duplicate processing
@@ -136,7 +137,8 @@ Useful endpoints:
 | `GET` | `/documents` | List documents for the current development owner |
 | `GET` | `/documents/{id}` | Read document status and metadata |
 | `GET` | `/documents/{id}/chunks` | Read page-aware chunks |
-| `GET` | `/search?query=...` | Search document chunks |
+| `GET` | `/search?query=...` | Full-text search over document chunks |
+| `GET` | `/semantic-search?query=...` | Semantic search over document chunks |
 | `POST` | `/rag/context` | Build source-grounded retrieval context |
 | `DELETE` | `/documents/{id}` | Delete a document and its stored PDF |
 
@@ -237,10 +239,10 @@ database. They must never run against personal or production data.
 
 ## Roadmap 🗺️
 
-1. Add retry limits, worker observability, and stronger recovery for interrupted jobs.
-2. Add document hashes, duplicate detection, and OCR support.
-3. Persist real embeddings and add `pgvector` semantic search.
-4. Combine full-text and semantic retrieval into hybrid search.
+1. Add worker observability and stronger recovery for interrupted jobs.
+2. Add OCR support for scanned PDFs.
+3. Combine full-text and semantic retrieval into hybrid search.
+4. Replace the development embedding provider with a production model provider.
 5. Add an LLM provider interface for cited RAG answers.
 6. Add refresh tokens and optional external identity-provider integration.
 7. Build quizzes, flashcards, collections, and learning progress tracking.

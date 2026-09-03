@@ -1,8 +1,9 @@
-from sqlalchemy import func, or_, select
+from sqlalchemy import cast, func, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, contains_eager
 
 from studygraph.document_model import Document, DocumentChunk
+from studygraph.embedding_service import DeterministicHashEmbeddingProvider, Vector
 
 
 class DocumentRepositoryError(Exception):
@@ -225,5 +226,46 @@ class DocumentRepository:
             chunks = list(self._session.scalars(chunks_statement).all())
         except SQLAlchemyError as error:
             raise DocumentRepositoryError("Could not search chunks.") from error
+
+        return chunks, total
+
+    def semantic_search_chunks(
+        self,
+        *,
+        owner_id: str,
+        query: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[DocumentChunk], int]:
+        query_embedding = DeterministicHashEmbeddingProvider().embed_texts([query])[0]
+        distance = DocumentChunk.embedding.op("<=>")(
+            cast(query_embedding.vector, Vector())
+        )
+        embedding_filter = DocumentChunk.embedding.is_not(None)
+        total_statement = (
+            select(func.count())
+            .select_from(DocumentChunk)
+            .join(DocumentChunk.document)
+            .where(Document.owner_id == owner_id)
+            .where(embedding_filter)
+        )
+        chunks_statement = (
+            select(DocumentChunk)
+            .join(DocumentChunk.document)
+            .options(contains_eager(DocumentChunk.document))
+            .where(Document.owner_id == owner_id)
+            .where(embedding_filter)
+            .order_by(distance, DocumentChunk.id)
+            .limit(limit)
+            .offset(offset)
+        )
+
+        try:
+            total = self._session.scalar(total_statement) or 0
+            chunks = list(self._session.scalars(chunks_statement).all())
+        except SQLAlchemyError as error:
+            raise DocumentRepositoryError(
+                "Could not search document embeddings."
+            ) from error
 
         return chunks, total
