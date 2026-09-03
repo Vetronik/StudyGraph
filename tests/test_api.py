@@ -7,15 +7,23 @@ import pytest
 from fastapi import Header, HTTPException, status
 from fastapi.testclient import TestClient
 
-from studygraph.api import app, get_document_service
+from studygraph.api import app, get_document_processor, get_document_service
 from studygraph.auth import AuthenticationError, resolve_owner_id
 from studygraph.config import (
     DATABASE_URL_ENV_VAR,
     MAX_DOCUMENT_CHARACTERS_ENV_VAR,
     MAX_UPLOAD_BYTES_ENV_VAR,
     REQUIRE_USER_HEADER_ENV_VAR,
+    get_max_document_characters,
+    get_max_document_pages,
 )
 from studygraph.document_model import Document, DocumentChunk
+from studygraph.document_processing import (
+    DocumentProcessingFailed,
+    DocumentProcessingLimits,
+    DocumentProcessingStateError,
+    process_pending_document,
+)
 from studygraph.document_repository import DocumentRepositoryError
 from studygraph.document_service import DEFAULT_OWNER_ID, DocumentService
 
@@ -187,6 +195,26 @@ def client(document_repository: InMemoryDocumentRepository) -> TestClient:
         return DocumentService(document_repository, owner_id=owner_id)
 
     app.dependency_overrides[get_document_service] = override_document_service
+
+    def process_for_tests(document_id: int, pdf_path: Path) -> None:
+        owner_id = document_repository._documents[document_id].owner_id
+        try:
+            process_pending_document(
+                DocumentService(document_repository, owner_id=owner_id),
+                document_id=document_id,
+                pdf_path=pdf_path,
+                limits=DocumentProcessingLimits(
+                    max_pages=get_max_document_pages(),
+                    max_characters=get_max_document_characters(),
+                ),
+            )
+        except (DocumentProcessingFailed, DocumentProcessingStateError):
+            return
+
+    def override_document_processor() -> Callable[[int, Path], None]:
+        return process_for_tests
+
+    app.dependency_overrides[get_document_processor] = override_document_processor
 
     with TestClient(app) as test_client:
         yield test_client

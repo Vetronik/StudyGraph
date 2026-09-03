@@ -199,9 +199,10 @@ studygraph --process-pending
 ```
 
 The API returns after the upload has been stored. Processing runs in a
-background task, and the document status can be read through
-`GET /documents/{document_id}`. The CLI worker is useful for retries and for
-processing documents outside the API process.
+background task with a separate worker service and database session, and the
+document status can be read through `GET /documents/{document_id}`. The CLI
+worker is useful for retries and for processing documents outside the API
+process.
 
 ## Tests
 

@@ -1,17 +1,9 @@
 import argparse
 from pathlib import Path
 
-from studygraph.config import (
-    get_max_document_characters,
-    get_max_document_pages,
-)
 from studygraph.database import get_session_factory
-from studygraph.document_processing import (
-    DocumentProcessingLimits,
-    process_pending_document,
-)
 from studygraph.document_repository import DocumentRepository
-from studygraph.document_service import DocumentService
+from studygraph.document_worker import process_document_job
 from studygraph.pdf_text_extractor import PdfTextExtractionError, extract_text_from_pdf
 
 
@@ -53,21 +45,13 @@ def main() -> int:
 def process_pending_documents() -> int:
     with get_session_factory() as session:
         repository = DocumentRepository(session)
-        pending_documents = repository.list_pending()
+        pending_documents = [
+            (document.id, Path(document.source_path))
+            for document in repository.list_pending()
+            if document.source_path
+        ]
 
-        for document in pending_documents:
-            if not document.source_path:
-                continue
-
-            service = DocumentService(repository, owner_id=document.owner_id)
-            process_pending_document(
-                service,
-                document_id=document.id,
-                pdf_path=Path(document.source_path),
-                limits=DocumentProcessingLimits(
-                    max_pages=get_max_document_pages(),
-                    max_characters=get_max_document_characters(),
-                ),
-            )
+    for document_id, pdf_path in pending_documents:
+        process_document_job(document_id, pdf_path)
 
     return 0

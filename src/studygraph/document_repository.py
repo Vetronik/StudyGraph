@@ -68,6 +68,19 @@ class DocumentRepository:
                 "Could not load pending documents."
             ) from error
 
+    def get_for_processing(self, document_id: int) -> Document | None:
+        statement = select(Document).where(
+            Document.id == document_id,
+            Document.status.in_({"pending", "failed", "processing"}),
+        )
+
+        try:
+            return self._session.scalar(statement)
+        except SQLAlchemyError as error:
+            raise DocumentRepositoryError(
+                "Could not load document for processing."
+            ) from error
+
     def claim_for_processing(
         self,
         document_id: int,

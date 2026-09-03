@@ -1,5 +1,6 @@
 import logging
 import shutil
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -30,20 +31,13 @@ from studygraph.auth import AuthenticationError, CurrentUser, resolve_owner_id
 from studygraph.config import (
     ConfigurationError,
     get_document_storage_dir,
-    get_max_document_characters,
-    get_max_document_pages,
     get_max_upload_bytes,
     get_require_user_header,
     is_database_configured,
 )
 from studygraph.database import get_session
 from studygraph.document_model import Document, DocumentChunk
-from studygraph.document_processing import (
-    DocumentProcessingFailed,
-    DocumentProcessingLimits,
-    DocumentProcessingStateError,
-    process_pending_document,
-)
+from studygraph.document_processing import DocumentProcessingStateError
 from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import (
     DocumentDeletionError,
@@ -53,6 +47,7 @@ from studygraph.document_service import (
     DocumentService,
     DocumentStorageError,
 )
+from studygraph.document_worker import process_document_job
 from studygraph.logging_config import configure_logging
 from studygraph.retrieval_service import RetrievalService
 
@@ -68,6 +63,8 @@ PDF_CONTENT_TYPES = {
     "application/x-pdf",
 }
 WEB_DIR = Path(__file__).resolve().parent / "web"
+
+DocumentProcessor = Callable[[int, Path], None]
 
 
 @asynccontextmanager
@@ -306,6 +303,10 @@ def get_retrieval_service(
     return RetrievalService(document_service)
 
 
+def get_document_processor() -> DocumentProcessor:
+    return process_document_job
+
+
 async def _save_upload_to_temporary_pdf(
     upload: UploadFile,
     *,
@@ -394,6 +395,10 @@ async def create_document(
     file: Annotated[UploadFile, File(description="PDF file to process")],
     background_tasks: BackgroundTasks,
     document_service: Annotated[DocumentService, Depends(get_document_service)],
+    document_processor: Annotated[
+        DocumentProcessor,
+        Depends(get_document_processor),
+    ],
 ) -> DocumentResponse:
     filename = file.filename or ""
 
@@ -442,8 +447,7 @@ async def create_document(
             document.file_size_bytes,
         )
         background_tasks.add_task(
-            _process_document_background,
-            document_service,
+            document_processor,
             document.id,
             persistent_path,
         )
@@ -483,30 +487,6 @@ async def create_document(
         )
 
     return _build_document_response(document)
-
-
-def _process_document_background(
-    document_service: DocumentService,
-    document_id: int,
-    pdf_path: Path,
-) -> None:
-    try:
-        process_pending_document(
-            document_service,
-            document_id=document_id,
-            pdf_path=pdf_path,
-            limits=DocumentProcessingLimits(
-                max_pages=get_max_document_pages(),
-                max_characters=get_max_document_characters(),
-            ),
-        )
-    except DocumentProcessingFailed:
-        logger.info(
-            "document_processing_completed_with_failure document_id=%s",
-            document_id,
-        )
-    except DocumentProcessingStateError:
-        logger.exception("document_processing_state_error document_id=%s", document_id)
 
 
 @app.get(
