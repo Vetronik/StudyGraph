@@ -142,6 +142,7 @@ class DocumentService:
         *,
         filename: str,
         file_size_bytes: int,
+        source_path: str | None = None,
     ) -> Document:
         document = Document(
             filename=filename,
@@ -152,6 +153,7 @@ class DocumentService:
             extracted_text="",
             status=DOCUMENT_STATUS_PENDING,
             processing_error=None,
+            source_path=source_path,
         )
 
         try:
@@ -164,6 +166,7 @@ class DocumentService:
         *,
         filename: str,
         extracted_document: ExtractedPdfDocument,
+        source_path: str | None = None,
     ) -> Document:
         document = Document(
             filename=filename,
@@ -174,6 +177,7 @@ class DocumentService:
             extracted_text=extracted_document.text,
             status=DOCUMENT_STATUS_PROCESSED,
             processing_error=None,
+            source_path=source_path,
         )
         document.chunks = _build_document_chunks(extracted_document)
 

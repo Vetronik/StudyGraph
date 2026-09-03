@@ -190,6 +190,18 @@ chosen.
 
 Use `DELETE /documents/{document_id}` to remove a stored document.
 
+Uploaded PDF files are stored below `STUDYGRAPH_DOCUMENT_STORAGE_DIR` so that
+processing can be moved out of the API request. Pending documents can be
+processed through the CLI:
+
+```powershell
+studygraph --process-pending
+```
+
+The current API still processes uploads immediately for local development. The
+pending-document worker is the foundation for the next asynchronous processing
+milestone.
+
 ## Tests
 
 Run the automated tests with:

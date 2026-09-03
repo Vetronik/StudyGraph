@@ -1,10 +1,12 @@
 import logging
+import shutil
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Annotated
+from uuid import uuid4
 
 from fastapi import (
     Depends,
@@ -26,6 +28,7 @@ from sqlalchemy.orm import Session
 from studygraph.auth import AuthenticationError, CurrentUser, resolve_owner_id
 from studygraph.config import (
     ConfigurationError,
+    get_document_storage_dir,
     get_max_document_characters,
     get_max_document_pages,
     get_max_upload_bytes,
@@ -350,6 +353,15 @@ def _validate_pdf_header(pdf_path: Path) -> None:
         raise UploadContentError("Uploaded file content is not a PDF.")
 
 
+def _persist_upload(saved_upload: SavedUpload) -> Path:
+    storage_dir = Path(get_document_storage_dir()).resolve()
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    persistent_path = storage_dir / f"upload-{uuid4().hex}.pdf"
+    shutil.copyfile(saved_upload.path, persistent_path)
+    saved_upload.path.unlink(missing_ok=True)
+    return persistent_path
+
+
 @app.get(
     "/",
     response_class=HTMLResponse,
@@ -404,6 +416,7 @@ async def create_document(
         ) from error
 
     saved_upload: SavedUpload | None = None
+    persistent_path: Path | None = None
     document: Document | None = None
 
     try:
@@ -412,9 +425,11 @@ async def create_document(
             max_bytes=get_max_upload_bytes(),
         )
         _validate_pdf_header(saved_upload.path)
+        persistent_path = _persist_upload(saved_upload)
         document = document_service.create_pending_document(
             filename=filename,
             file_size_bytes=saved_upload.size_bytes,
+            source_path=str(persistent_path),
         )
         logger.info(
             "document_upload_accepted owner_id=%s document_id=%s filename=%s "
@@ -427,7 +442,7 @@ async def create_document(
         document = process_pending_document(
             document_service,
             document_id=document.id,
-            pdf_path=saved_upload.path,
+            pdf_path=persistent_path,
             limits=DocumentProcessingLimits(
                 max_pages=get_max_document_pages(),
                 max_characters=get_max_document_characters(),
@@ -466,6 +481,9 @@ async def create_document(
 
         if saved_upload is not None:
             saved_upload.path.unlink(missing_ok=True)
+
+        if document is None and persistent_path is not None:
+            persistent_path.unlink(missing_ok=True)
 
     if document is None:
         raise HTTPException(
@@ -662,6 +680,8 @@ def delete_document(
     try:
         document = document_service.get_document(document_id)
         document_service.delete_document(document_id)
+        if document.source_path:
+            Path(document.source_path).unlink(missing_ok=True)
         logger.info(
             "document_deleted owner_id=%s document_id=%s filename=%s",
             document.owner_id,

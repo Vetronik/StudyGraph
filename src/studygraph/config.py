@@ -1,6 +1,7 @@
 import os
 
 DATABASE_URL_ENV_VAR = "DATABASE_URL"
+DOCUMENT_STORAGE_DIR_ENV_VAR = "STUDYGRAPH_DOCUMENT_STORAGE_DIR"
 LOG_LEVEL_ENV_VAR = "STUDYGRAPH_LOG_LEVEL"
 MAX_DOCUMENT_CHARACTERS_ENV_VAR = "STUDYGRAPH_MAX_DOCUMENT_CHARACTERS"
 MAX_DOCUMENT_PAGES_ENV_VAR = "STUDYGRAPH_MAX_DOCUMENT_PAGES"
@@ -8,6 +9,7 @@ MAX_UPLOAD_BYTES_ENV_VAR = "STUDYGRAPH_MAX_UPLOAD_BYTES"
 REQUIRE_USER_HEADER_ENV_VAR = "STUDYGRAPH_REQUIRE_USER_HEADER"
 
 DEFAULT_LOG_LEVEL = "INFO"
+DEFAULT_DOCUMENT_STORAGE_DIR = "data/documents"
 DEFAULT_MAX_DOCUMENT_CHARACTERS = 1_000_000
 DEFAULT_MAX_DOCUMENT_PAGES = 500
 DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -41,6 +43,20 @@ def is_database_configured() -> bool:
         return False
 
     return True
+
+
+def get_document_storage_dir() -> str:
+    value = os.environ.get(
+        DOCUMENT_STORAGE_DIR_ENV_VAR,
+        DEFAULT_DOCUMENT_STORAGE_DIR,
+    ).strip()
+
+    if not value:
+        raise ConfigurationError(
+            f"{DOCUMENT_STORAGE_DIR_ENV_VAR} must contain a directory path."
+        )
+
+    return value
 
 
 def _get_positive_int_from_env(env_var_name: str, default: int) -> int:

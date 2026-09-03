@@ -53,6 +53,21 @@ class DocumentRepository:
         except SQLAlchemyError as error:
             raise DocumentRepositoryError("Could not load document.") from error
 
+    def list_pending(self, *, limit: int = 20) -> list[Document]:
+        statement = (
+            select(Document)
+            .where(Document.status == "pending")
+            .order_by(Document.created_at, Document.id)
+            .limit(limit)
+        )
+
+        try:
+            return list(self._session.scalars(statement).all())
+        except SQLAlchemyError as error:
+            raise DocumentRepositoryError(
+                "Could not load pending documents."
+            ) from error
+
     def list_chunks(self, document_id: int, *, owner_id: str) -> list[DocumentChunk]:
         statement = (
             select(DocumentChunk)
