@@ -112,6 +112,7 @@ $env:STUDYGRAPH_MAX_UPLOAD_BYTES = "10485760"
 $env:STUDYGRAPH_MAX_DOCUMENT_PAGES = "500"
 $env:STUDYGRAPH_MAX_DOCUMENT_CHARACTERS = "1000000"
 $env:STUDYGRAPH_REQUIRE_USER_HEADER = "false"
+$env:STUDYGRAPH_LOG_LEVEL = "INFO"
 ```
 
 Run database migrations before starting the API:
@@ -157,6 +158,10 @@ curl -H "X-StudyGraph-User: alice" http://127.0.0.1:8000/documents
 Set `STUDYGRAPH_REQUIRE_USER_HEADER=true` to reject document requests that do
 not include the owner header. Owner IDs may contain letters, numbers, dots,
 underscores, hyphens, and `@`.
+
+StudyGraph logs processing lifecycle events such as upload acceptance,
+processing success, processing failure, and deletion. Logs include document IDs,
+owners, filenames, and counts, but not extracted document text.
 
 Use `GET /documents` to list stored documents. The endpoint supports
 `limit`, `offset`, and `query` parameters for pagination and simple text search.

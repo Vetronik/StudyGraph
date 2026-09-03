@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from pathlib import Path
 
@@ -60,12 +61,14 @@ class RecordingDocumentService:
 
 
 def test_process_pending_document_processes_valid_pdf(
+    caplog: pytest.LogCaptureFixture,
     tmp_path: Path,
     write_pdf_with_text: Callable[[Path, str], None],
 ) -> None:
     service = RecordingDocumentService()
     pdf_path = tmp_path / "lecture.pdf"
     write_pdf_with_text(pdf_path, "StudyGraph extracts text")
+    caplog.set_level(logging.INFO, logger="studygraph.document_processing")
 
     document = process_pending_document(
         service,
@@ -81,14 +84,18 @@ def test_process_pending_document_processes_valid_pdf(
     assert document.status == "processed"
     assert service.processed_document_id == 7
     assert service.failed_document_id is None
+    assert "document_processing_started document_id=7" in caplog.text
+    assert "document_processing_completed document_id=7" in caplog.text
 
 
 def test_process_pending_document_marks_failed_pdf(
+    caplog: pytest.LogCaptureFixture,
     tmp_path: Path,
 ) -> None:
     service = RecordingDocumentService()
     pdf_path = tmp_path / "broken.pdf"
     pdf_path.write_bytes(b"%PDF-1.4\nThis is not a valid PDF structure.")
+    caplog.set_level(logging.WARNING, logger="studygraph.document_processing")
 
     with pytest.raises(DocumentProcessingFailed) as error:
         process_pending_document(
@@ -105,3 +112,4 @@ def test_process_pending_document_marks_failed_pdf(
     assert service.failed_document_id == 8
     assert service.failure_message is not None
     assert service.failure_message.startswith("Could not read PDF:")
+    assert "document_processing_failed document_id=8" in caplog.text

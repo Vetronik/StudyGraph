@@ -464,6 +464,22 @@ def test_delete_document_returns_404_for_unknown_id(
     }
 
 
+def test_delete_document_returns_500_when_document_read_fails() -> None:
+    def override_document_service() -> DocumentService:
+        return DocumentService(FailingDocumentReadRepository())
+
+    app.dependency_overrides[get_document_service] = override_document_service
+
+    try:
+        with TestClient(app, raise_server_exceptions=False) as test_client:
+            response = test_client.delete("/documents/1")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Could not delete document."}
+
+
 def test_list_documents_returns_stored_documents(
     client: TestClient,
     tmp_path: Path,

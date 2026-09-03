@@ -1,3 +1,5 @@
+import logging
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -47,7 +49,10 @@ from studygraph.document_service import (
     DocumentService,
     DocumentStorageError,
 )
+from studygraph.logging_config import configure_logging
 from studygraph.retrieval_service import RetrievalService
+
+logger = logging.getLogger(__name__)
 
 TEXT_PREVIEW_MAX_CHARACTERS = 300
 SEARCH_SNIPPET_CONTEXT_CHARACTERS = 80
@@ -60,10 +65,17 @@ PDF_CONTENT_TYPES = {
 }
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    configure_logging()
+    yield
+
 app = FastAPI(
     title="StudyGraph API",
     description="Minimal API for extracting text information from uploaded PDFs.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
@@ -404,6 +416,14 @@ async def create_document(
             filename=filename,
             file_size_bytes=saved_upload.size_bytes,
         )
+        logger.info(
+            "document_upload_accepted owner_id=%s document_id=%s filename=%s "
+            "file_size_bytes=%s",
+            document.owner_id,
+            document.id,
+            document.filename,
+            document.file_size_bytes,
+        )
         document = process_pending_document(
             document_service,
             document_id=document.id,
@@ -640,11 +660,23 @@ def delete_document(
     document_service: Annotated[DocumentService, Depends(get_document_service)],
 ) -> Response:
     try:
+        document = document_service.get_document(document_id)
         document_service.delete_document(document_id)
+        logger.info(
+            "document_deleted owner_id=%s document_id=%s filename=%s",
+            document.owner_id,
+            document.id,
+            document.filename,
+        )
     except DocumentNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not delete document.",
         ) from error
     except DocumentDeletionError as error:
         raise HTTPException(

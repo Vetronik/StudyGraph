@@ -1,14 +1,17 @@
 import os
 
 DATABASE_URL_ENV_VAR = "DATABASE_URL"
+LOG_LEVEL_ENV_VAR = "STUDYGRAPH_LOG_LEVEL"
 MAX_DOCUMENT_CHARACTERS_ENV_VAR = "STUDYGRAPH_MAX_DOCUMENT_CHARACTERS"
 MAX_DOCUMENT_PAGES_ENV_VAR = "STUDYGRAPH_MAX_DOCUMENT_PAGES"
 MAX_UPLOAD_BYTES_ENV_VAR = "STUDYGRAPH_MAX_UPLOAD_BYTES"
 REQUIRE_USER_HEADER_ENV_VAR = "STUDYGRAPH_REQUIRE_USER_HEADER"
 
+DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_MAX_DOCUMENT_CHARACTERS = 1_000_000
 DEFAULT_MAX_DOCUMENT_PAGES = 500
 DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+VALID_LOG_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
 
 
 class ConfigurationError(RuntimeError):
@@ -97,3 +100,16 @@ def get_require_user_header() -> bool:
     raise ConfigurationError(
         f"{REQUIRE_USER_HEADER_ENV_VAR} must be a boolean value."
     )
+
+
+def get_log_level() -> str:
+    raw_value = os.environ.get(LOG_LEVEL_ENV_VAR, DEFAULT_LOG_LEVEL)
+    log_level = raw_value.strip().upper()
+
+    if log_level not in VALID_LOG_LEVELS:
+        allowed_values = ", ".join(sorted(VALID_LOG_LEVELS))
+        raise ConfigurationError(
+            f"{LOG_LEVEL_ENV_VAR} must be one of: {allowed_values}."
+        )
+
+    return log_level

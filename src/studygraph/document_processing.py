@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from studygraph.document_service import (
     DocumentStorageError,
 )
 from studygraph.pdf_text_extractor import PdfTextExtractionError, extract_pdf_document
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -37,19 +40,34 @@ def process_pending_document(
     pdf_path: Path,
     limits: DocumentProcessingLimits,
 ) -> Document:
+    logger.info("document_processing_started document_id=%s", document_id)
+
     try:
         extracted_document = extract_pdf_document(pdf_path)
-        return document_service.process_document(
+        document = document_service.process_document(
             document_id,
             extracted_document=extracted_document,
             max_pages=limits.max_pages,
             max_characters=limits.max_characters,
         )
+        logger.info(
+            "document_processing_completed document_id=%s page_count=%s "
+            "character_count=%s",
+            document.id,
+            document.page_count,
+            document.character_count,
+        )
+        return document
     except (PdfTextExtractionError, DocumentProcessingLimitError) as error:
         _mark_document_failed(
             document_service,
             document_id=document_id,
             error_message=str(error),
+        )
+        logger.warning(
+            "document_processing_failed document_id=%s reason=%s",
+            document_id,
+            type(error).__name__,
         )
         raise DocumentProcessingFailed(document_id, str(error)) from error
     except (DocumentReadError, DocumentStorageError) as error:
