@@ -46,6 +46,12 @@ class Document(Base):
         server_default="processed",
     )
     processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    processing_attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
     source_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

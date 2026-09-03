@@ -43,6 +43,18 @@ def process_pending_document(
     logger.info("document_processing_started document_id=%s", document_id)
 
     try:
+        claimed_document = document_service.claim_document_for_processing(document_id)
+        if claimed_document is None:
+            existing_document = document_service.get_document(document_id)
+            if existing_document.status == "processing":
+                logger.info(
+                    "document_processing_already_claimed document_id=%s",
+                    document_id,
+                )
+                return existing_document
+        else:
+            logger.info("document_processing_claimed document_id=%s", document_id)
+
         extracted_document = extract_pdf_document(pdf_path)
         document = document_service.process_document(
             document_id,

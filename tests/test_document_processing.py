@@ -17,6 +17,7 @@ class RecordingDocumentService:
         self.failed_document_id: int | None = None
         self.failure_message: str | None = None
         self.processed_document_id: int | None = None
+        self.claimed_document_id: int | None = None
 
     def process_document(
         self,
@@ -37,6 +38,38 @@ class RecordingDocumentService:
             extracted_text=extracted_document.text,
             status="processed",
             processing_error=None,
+        )
+
+    def claim_document_for_processing(
+        self,
+        document_id: int,
+    ) -> Document | None:
+        self.claimed_document_id = document_id
+        return Document(
+            id=document_id,
+            filename="lecture.pdf",
+            owner_id="local-user",
+            file_size_bytes=100,
+            page_count=0,
+            character_count=0,
+            extracted_text="",
+            status="processing",
+            processing_error=None,
+            processing_attempts=1,
+        )
+
+    def get_document(self, document_id: int) -> Document:
+        return Document(
+            id=document_id,
+            filename="lecture.pdf",
+            owner_id="local-user",
+            file_size_bytes=100,
+            page_count=0,
+            character_count=0,
+            extracted_text="",
+            status="processing",
+            processing_error=None,
+            processing_attempts=1,
         )
 
     def mark_document_failed(
@@ -83,6 +116,7 @@ def test_process_pending_document_processes_valid_pdf(
     assert document.id == 7
     assert document.status == "processed"
     assert service.processed_document_id == 7
+    assert service.claimed_document_id == 7
     assert service.failed_document_id is None
     assert "document_processing_started document_id=7" in caplog.text
     assert "document_processing_completed document_id=7" in caplog.text

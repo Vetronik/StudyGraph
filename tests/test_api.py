@@ -57,6 +57,20 @@ class InMemoryDocumentRepository:
         self._assign_chunk_metadata(document)
         return document
 
+    def claim_for_processing(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+    ) -> Document | None:
+        document = self.get_by_id(document_id, owner_id=owner_id)
+        if document is None or document.status == "processing":
+            return None
+        document.status = "processing"
+        document.processing_attempts = (document.processing_attempts or 0) + 1
+        document.processing_error = None
+        return document
+
     def delete(self, document: Document) -> None:
         del self._documents[document.id]
 

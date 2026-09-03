@@ -56,7 +56,7 @@ class DocumentRepository:
     def list_pending(self, *, limit: int = 20) -> list[Document]:
         statement = (
             select(Document)
-            .where(Document.status.in_({"pending", "failed"}))
+            .where(Document.status.in_({"pending", "failed", "processing"}))
             .order_by(Document.created_at, Document.id)
             .limit(limit)
         )
@@ -66,6 +66,39 @@ class DocumentRepository:
         except SQLAlchemyError as error:
             raise DocumentRepositoryError(
                 "Could not load pending documents."
+            ) from error
+
+    def claim_for_processing(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+    ) -> Document | None:
+        statement = (
+            select(Document)
+            .where(
+                Document.id == document_id,
+                Document.owner_id == owner_id,
+                Document.status.in_({"pending", "failed", "processing"}),
+            )
+            .with_for_update()
+        )
+
+        try:
+            document = self._session.scalar(statement)
+            if document is None or document.status == "processing":
+                return document
+
+            document.status = "processing"
+            document.processing_attempts = (document.processing_attempts or 0) + 1
+            document.processing_error = None
+            self._session.commit()
+            self._session.refresh(document)
+            return document
+        except SQLAlchemyError as error:
+            self._session.rollback()
+            raise DocumentRepositoryError(
+                "Could not claim document for processing."
             ) from error
 
     def list_chunks(self, document_id: int, *, owner_id: str) -> list[DocumentChunk]:

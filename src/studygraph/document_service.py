@@ -33,6 +33,7 @@ class DocumentSearchQueryError(Exception):
 
 DOCUMENT_STATUS_FAILED = "failed"
 DOCUMENT_STATUS_PENDING = "pending"
+DOCUMENT_STATUS_PROCESSING = "processing"
 DOCUMENT_STATUS_PROCESSED = "processed"
 DEFAULT_OWNER_ID = "local-user"
 
@@ -65,6 +66,13 @@ class DocumentRepositoryProtocol(Protocol):
     def update(self, document: Document) -> Document: ...
 
     def delete(self, document: Document) -> None: ...
+
+    def claim_for_processing(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+    ) -> Document | None: ...
 
     def get_by_id(self, document_id: int, *, owner_id: str) -> Document | None: ...
 
@@ -221,6 +229,17 @@ class DocumentService:
             return self._repository.update(document)
         except DocumentRepositoryError as error:
             raise DocumentStorageError("Could not save document.") from error
+
+    def claim_document_for_processing(self, document_id: int) -> Document | None:
+        try:
+            return self._repository.claim_for_processing(
+                document_id,
+                owner_id=self._owner_id,
+            )
+        except DocumentRepositoryError as error:
+            raise DocumentStorageError(
+                "Could not claim document for processing."
+            ) from error
 
     def mark_document_failed(
         self,
