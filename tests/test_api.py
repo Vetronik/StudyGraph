@@ -284,17 +284,17 @@ def test_create_document_stores_valid_pdf(
 
     response_data = response.json()
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     assert response_data == {
         "id": 1,
         "filename": "lecture.pdf",
         "owner_id": DEFAULT_OWNER_ID,
         "file_size_bytes": pdf_path.stat().st_size,
-        "page_count": 1,
-        "character_count": 40,
-        "status": "processed",
+        "page_count": 0,
+        "character_count": 0,
+        "status": "pending",
         "processing_error": None,
-        "text_preview": "StudyGraph extracts text through the API",
+        "text_preview": "",
         "created_at": "2026-08-15T12:00:00Z",
     }
     assert document_repository.count() == 1
@@ -319,7 +319,7 @@ def test_create_document_returns_generated_id(
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     assert isinstance(response.json()["id"], int)
     assert response.json()["id"] > 0
 
@@ -347,7 +347,8 @@ def test_get_document_returns_existing_document(
     response = client.get(f"/documents/{document_id}")
 
     assert response.status_code == 200
-    assert response.json() == create_response.json()
+    assert response.json()["id"] == create_response.json()["id"]
+    assert response.json()["status"] == "processed"
 
 
 def test_get_document_returns_404_for_unknown_id(client: TestClient) -> None:
@@ -739,8 +740,8 @@ def test_document_access_is_scoped_by_owner_header(
         headers={"X-StudyGraph-User": "owner-b"},
     )
 
-    assert first_response.status_code == 200
-    assert second_response.status_code == 200
+    assert first_response.status_code == 202
+    assert second_response.status_code == 202
     assert first_response.json()["owner_id"] == "owner-a"
     assert second_response.json()["owner_id"] == "owner-b"
     assert owner_a_list.json()["total"] == 1
@@ -947,14 +948,11 @@ def test_create_document_rejects_invalid_pdf(
         },
     )
 
-    assert response.status_code == 422
-    response_detail = response.json()["detail"]
-    assert response_detail["document_id"] == 1
-    assert response_detail["message"].startswith(
-        "Could not process PDF: Could not read PDF:"
-    )
+    assert response.status_code == 202
+    response_detail = response.json()
+    assert response_detail["id"] == 1
     failed_document = document_repository.get_by_id(
-        response_detail["document_id"],
+        response_detail["id"],
         owner_id=DEFAULT_OWNER_ID,
     )
     assert failed_document is not None
@@ -984,14 +982,8 @@ def test_create_document_rejects_pdf_without_extractable_text(
         },
     )
 
-    assert response.status_code == 422
-    assert response.json()["detail"] == {
-        "message": (
-            "Could not process PDF: No text could be extracted. "
-            "The PDF may contain scanned images only."
-        ),
-        "document_id": 1,
-    }
+    assert response.status_code == 202
+    assert response.json()["id"] == 1
     failed_document = document_repository.get_by_id(1, owner_id=DEFAULT_OWNER_ID)
     assert failed_document is not None
     assert failed_document.status == "failed"
@@ -1023,14 +1015,8 @@ def test_create_document_marks_document_failed_when_text_limit_is_exceeded(
         },
     )
 
-    assert response.status_code == 422
-    assert response.json()["detail"] == {
-        "message": (
-            "Could not process PDF: Document exceeds maximum character count "
-            "(40 > 10)."
-        ),
-        "document_id": 1,
-    }
+    assert response.status_code == 202
+    assert response.json()["id"] == 1
     failed_document = document_repository.get_by_id(1, owner_id=DEFAULT_OWNER_ID)
     assert failed_document is not None
     assert failed_document.status == "failed"

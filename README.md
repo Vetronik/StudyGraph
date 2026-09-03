@@ -198,9 +198,10 @@ processed through the CLI:
 studygraph --process-pending
 ```
 
-The current API still processes uploads immediately for local development. The
-pending-document worker is the foundation for the next asynchronous processing
-milestone.
+The API returns after the upload has been stored. Processing runs in a
+background task, and the document status can be read through
+`GET /documents/{document_id}`. The CLI worker is useful for retries and for
+processing documents outside the API process.
 
 ## Tests
 

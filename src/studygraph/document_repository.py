@@ -56,7 +56,7 @@ class DocumentRepository:
     def list_pending(self, *, limit: int = 20) -> list[Document]:
         statement = (
             select(Document)
-            .where(Document.status == "pending")
+            .where(Document.status.in_({"pending", "failed"}))
             .order_by(Document.created_at, Document.id)
             .limit(limit)
         )

@@ -9,6 +9,7 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import (
+    BackgroundTasks,
     Depends,
     FastAPI,
     File,
@@ -387,10 +388,11 @@ def health_check() -> HealthResponse:
 @app.post(
     "/documents",
     response_model=DocumentResponse,
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_document(
     file: Annotated[UploadFile, File(description="PDF file to process")],
+    background_tasks: BackgroundTasks,
     document_service: Annotated[DocumentService, Depends(get_document_service)],
 ) -> DocumentResponse:
     filename = file.filename or ""
@@ -439,14 +441,11 @@ async def create_document(
             document.filename,
             document.file_size_bytes,
         )
-        document = process_pending_document(
+        background_tasks.add_task(
+            _process_document_background,
             document_service,
-            document_id=document.id,
-            pdf_path=persistent_path,
-            limits=DocumentProcessingLimits(
-                max_pages=get_max_document_pages(),
-                max_characters=get_max_document_characters(),
-            ),
+            document.id,
+            persistent_path,
         )
     except UploadTooLargeError as error:
         raise HTTPException(
@@ -457,14 +456,6 @@ async def create_document(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error),
-        ) from error
-    except DocumentProcessingFailed as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "message": f"Could not process PDF: {error.message}",
-                "document_id": error.document_id,
-            },
         ) from error
     except DocumentStorageError as error:
         raise HTTPException(
@@ -492,6 +483,30 @@ async def create_document(
         )
 
     return _build_document_response(document)
+
+
+def _process_document_background(
+    document_service: DocumentService,
+    document_id: int,
+    pdf_path: Path,
+) -> None:
+    try:
+        process_pending_document(
+            document_service,
+            document_id=document_id,
+            pdf_path=pdf_path,
+            limits=DocumentProcessingLimits(
+                max_pages=get_max_document_pages(),
+                max_characters=get_max_document_characters(),
+            ),
+        )
+    except DocumentProcessingFailed:
+        logger.info(
+            "document_processing_completed_with_failure document_id=%s",
+            document_id,
+        )
+    except DocumentProcessingStateError:
+        logger.exception("document_processing_state_error document_id=%s", document_id)
 
 
 @app.get(

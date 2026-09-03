@@ -146,6 +146,20 @@ async function refreshDocuments() {
   }
 }
 
+async function waitForDocumentProcessing(documentId) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const documentItem = await requestJson(`/documents/${documentId}`);
+
+    if (documentItem.status !== "pending") {
+      return documentItem;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  return requestJson(`/documents/${documentId}`);
+}
+
 function renderDocuments() {
   elements.documentList.replaceChildren();
 
@@ -288,12 +302,18 @@ async function handleUpload(event) {
       body: formData,
     });
     state.selectedDocumentId = documentItem.id;
-    showNotice("Upload processed.", "success");
-    setUploadState("Processed", "status-processed");
+    showNotice("Upload queued for processing.", "success");
+    setUploadState("Pending", "status-pending");
     elements.uploadForm.reset();
     elements.selectedFileName.textContent = "Select PDF";
     await refreshDocuments();
-    await selectDocument(documentItem.id);
+    const processedDocument = await waitForDocumentProcessing(documentItem.id);
+    setUploadState(
+      processedDocument.status === "processed" ? "Processed" : "Failed",
+      getStatusClass(processedDocument.status),
+    );
+    await refreshDocuments();
+    await selectDocument(processedDocument.id);
   } catch (error) {
     showNotice(getErrorMessage(error), "error");
     setUploadState("Failed", "status-failed");
