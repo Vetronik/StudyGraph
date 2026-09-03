@@ -18,6 +18,7 @@ class RecordingDocumentService:
         self.failure_message: str | None = None
         self.processed_document_id: int | None = None
         self.claimed_document_id: int | None = None
+        self.already_claimed = False
 
     def process_document(
         self,
@@ -44,6 +45,8 @@ class RecordingDocumentService:
         self,
         document_id: int,
     ) -> Document | None:
+        if self.already_claimed:
+            return None
         self.claimed_document_id = document_id
         return Document(
             id=document_id,
@@ -120,6 +123,27 @@ def test_process_pending_document_processes_valid_pdf(
     assert service.failed_document_id is None
     assert "document_processing_started document_id=7" in caplog.text
     assert "document_processing_completed document_id=7" in caplog.text
+
+
+def test_process_pending_document_skips_already_claimed_document(
+    tmp_path: Path,
+) -> None:
+    service = RecordingDocumentService()
+    service.already_claimed = True
+    pdf_path = tmp_path / "lecture.pdf"
+
+    document = process_pending_document(
+        service,
+        document_id=7,
+        pdf_path=pdf_path,
+        limits=DocumentProcessingLimits(
+            max_pages=10,
+            max_characters=1000,
+        ),
+    )
+
+    assert document.status == "processing"
+    assert service.processed_document_id is None
 
 
 def test_process_pending_document_marks_failed_pdf(

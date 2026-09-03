@@ -87,7 +87,7 @@ class DocumentRepository:
         try:
             document = self._session.scalar(statement)
             if document is None or document.status == "processing":
-                return document
+                return None
 
             document.status = "processing"
             document.processing_attempts = (document.processing_attempts or 0) + 1
