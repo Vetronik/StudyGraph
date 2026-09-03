@@ -29,8 +29,9 @@ learning progress in one workspace. 🚀
 
 ### Current limitations ⚠️
 
-- The `X-StudyGraph-User` header is only a local development identity mechanism.
-- There is no real login, password authentication, session, or JWT yet.
+- The legacy `X-StudyGraph-User` header is only a local development identity mechanism.
+- Authentication currently uses application-managed accounts and signed bearer tokens;
+  a production identity provider is not integrated yet.
 - The current embedding provider is deterministic and intended for tests only.
 - No LLM is called and no AI-generated answer is produced yet.
 - OCR for scanned PDFs is not implemented yet.
@@ -187,6 +188,18 @@ After login, send the returned token as a bearer token:
 curl -H "Authorization: Bearer <access-token>" http://127.0.0.1:8000/documents
 ```
 
+Register and log in with the API:
+
+```powershell
+curl -X POST http://127.0.0.1:8000/auth/register `
+  -H "Content-Type: application/json" `
+  -d '{"username":"alice","password":"a-secure-password"}'
+
+curl -X POST http://127.0.0.1:8000/auth/login `
+  -H "Content-Type: application/json" `
+  -d '{"username":"alice","password":"a-secure-password"}'
+```
+
 Until `STUDYGRAPH_REQUIRE_AUTH_TOKEN=true` is enabled, different development
 owners can still be simulated with:
 
@@ -223,12 +236,12 @@ database. They must never run against personal or production data.
 
 ## Roadmap 🗺️
 
-1. Replace the development owner header with real authentication and JWT-based user identity.
-2. Add retry limits, worker observability, and stronger recovery for interrupted jobs.
-3. Add document hashes, duplicate detection, and OCR support.
-4. Persist real embeddings and add `pgvector` semantic search.
-5. Combine full-text and semantic retrieval into hybrid search.
-6. Add an LLM provider interface for cited RAG answers.
+1. Add retry limits, worker observability, and stronger recovery for interrupted jobs.
+2. Add document hashes, duplicate detection, and OCR support.
+3. Persist real embeddings and add `pgvector` semantic search.
+4. Combine full-text and semantic retrieval into hybrid search.
+5. Add an LLM provider interface for cited RAG answers.
+6. Add refresh tokens and optional external identity-provider integration.
 7. Build quizzes, flashcards, collections, and learning progress tracking.
 
 ## Contributing 🤝
