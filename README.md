@@ -129,6 +129,8 @@ Useful endpoints:
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Check API and database configuration |
+| `POST` | `/auth/register` | Register a user account |
+| `POST` | `/auth/login` | Obtain a bearer token |
 | `POST` | `/documents` | Validate and queue a PDF upload |
 | `GET` | `/documents` | List documents for the current development owner |
 | `GET` | `/documents/{id}` | Read document status and metadata |
@@ -169,6 +171,8 @@ variables:
 
 ```powershell
 $env:STUDYGRAPH_DOCUMENT_STORAGE_DIR = "data/documents"
+$env:STUDYGRAPH_AUTH_SECRET = "replace-this-with-a-long-random-secret"
+$env:STUDYGRAPH_REQUIRE_AUTH_TOKEN = "false"
 $env:STUDYGRAPH_MAX_UPLOAD_BYTES = "10485760"
 $env:STUDYGRAPH_MAX_DOCUMENT_PAGES = "500"
 $env:STUDYGRAPH_MAX_DOCUMENT_CHARACTERS = "1000000"
@@ -176,14 +180,23 @@ $env:STUDYGRAPH_REQUIRE_USER_HEADER = "false"
 $env:STUDYGRAPH_LOG_LEVEL = "INFO"
 ```
 
-For local development, requests without an owner header use `local-user`.
-Different development owners can be simulated with:
+For local development, requests without a bearer token use `local-user`.
+After login, send the returned token as a bearer token:
+
+```powershell
+curl -H "Authorization: Bearer <access-token>" http://127.0.0.1:8000/documents
+```
+
+Until `STUDYGRAPH_REQUIRE_AUTH_TOKEN=true` is enabled, different development
+owners can still be simulated with:
 
 ```powershell
 curl -H "X-StudyGraph-User: alice" http://127.0.0.1:8000/documents
 ```
 
-This mechanism must be replaced before deploying a multi-user version. 🔐
+Set `STUDYGRAPH_REQUIRE_AUTH_TOKEN=true` before deploying a multi-user version.
+The development owner header is then rejected when no bearer token is present.
+🔐
 
 ## Testing 🧪
 

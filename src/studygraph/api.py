@@ -27,11 +27,24 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from studygraph.auth import AuthenticationError, CurrentUser, resolve_owner_id
+from studygraph.auth import (
+    AuthenticationError,
+    CurrentUser,
+    create_access_token,
+    decode_access_token,
+    resolve_owner_id,
+)
+from studygraph.auth_service import (
+    AuthService,
+    InvalidCredentialsError,
+    UserAlreadyExistsError,
+)
 from studygraph.config import (
     ConfigurationError,
+    get_auth_secret,
     get_document_storage_dir,
     get_max_upload_bytes,
+    get_require_auth_token,
     get_require_user_header,
     is_database_configured,
 )
@@ -50,6 +63,7 @@ from studygraph.document_service import (
 from studygraph.document_worker import process_document_job
 from studygraph.logging_config import configure_logging
 from studygraph.retrieval_service import RetrievalService
+from studygraph.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +175,22 @@ class RetrievalContextResponse(BaseModel):
     context: str
 
 
+class AuthRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=120)
+    password: str = Field(min_length=8, max_length=256)
+
+
+class UserResponse(BaseModel):
+    username: str
+    created_at: datetime
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    expires_in: int
+
+
 @dataclass(frozen=True)
 class SavedUpload:
     path: Path
@@ -267,7 +297,31 @@ def get_current_user(
         str | None,
         Header(alias="X-StudyGraph-User", max_length=120),
     ] = None,
+    authorization: Annotated[str | None, Header()] = None,
 ) -> CurrentUser:
+    if authorization is not None:
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authorization must use a Bearer token.",
+            )
+        try:
+            return CurrentUser(
+                owner_id=decode_access_token(token, secret=get_auth_secret()),
+            )
+        except AuthenticationError as error:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(error),
+            ) from error
+
+    if get_require_auth_token():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer authentication is required.",
+        )
+
     try:
         owner_id = resolve_owner_id(
             x_studygraph_user,
@@ -305,6 +359,68 @@ def get_retrieval_service(
 
 def get_document_processor() -> DocumentProcessor:
     return process_document_job
+
+
+def get_auth_service(
+    session: Annotated[Session, Depends(get_session)],
+) -> AuthService:
+    return AuthService(UserRepository(session))
+
+
+def _normalize_username(username: str) -> str:
+    try:
+        return resolve_owner_id(username, require_header=True)
+    except AuthenticationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username contains invalid characters.",
+        ) from error
+
+
+@app.post(
+    "/auth/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def register_user(
+    request: AuthRequest,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> UserResponse:
+    username = _normalize_username(request.username)
+    try:
+        user = auth_service.register(username, request.password)
+    except UserAlreadyExistsError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username is already registered.",
+        ) from error
+
+    return UserResponse(username=user.username, created_at=user.created_at)
+
+
+@app.post(
+    "/auth/login",
+    response_model=TokenResponse,
+    status_code=status.HTTP_200_OK,
+)
+def login_user(
+    request: AuthRequest,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> TokenResponse:
+    username = _normalize_username(request.username)
+    try:
+        auth_service.authenticate(username, request.password)
+    except InvalidCredentialsError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password.",
+        ) from error
+
+    return TokenResponse(
+        access_token=create_access_token(username, secret=get_auth_secret()),
+        token_type="bearer",
+        expires_in=3600,
+    )
 
 
 async def _save_upload_to_temporary_pdf(

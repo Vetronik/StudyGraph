@@ -21,6 +21,9 @@ def test_alembic_migrations_generate_document_schema_sql() -> None:
     )
 
     assert result.returncode == 0, result.stderr
+    assert "CREATE TABLE users" in result.stdout
+    assert "password_hash" in result.stdout
+    assert "UNIQUE (username)" in result.stdout
     assert "CREATE TABLE documents" in result.stdout
     assert "extracted_text" in result.stdout
     assert "file_size_bytes" in result.stdout
