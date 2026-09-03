@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import shutil
 from collections.abc import Callable
@@ -54,6 +55,7 @@ from studygraph.document_processing import DocumentProcessingStateError
 from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import (
     DocumentDeletionError,
+    DocumentDuplicateError,
     DocumentNotFoundError,
     DocumentReadError,
     DocumentSearchQueryError,
@@ -99,6 +101,7 @@ class DocumentResponse(BaseModel):
     id: int
     filename: str
     owner_id: str
+    content_hash: str | None
     file_size_bytes: int
     page_count: int
     character_count: int
@@ -195,6 +198,7 @@ class TokenResponse(BaseModel):
 class SavedUpload:
     path: Path
     size_bytes: int
+    content_hash: str
 
 
 class UploadTooLargeError(Exception):
@@ -229,6 +233,7 @@ def _build_document_response(document: Document) -> DocumentResponse:
         id=document.id,
         filename=document.filename,
         owner_id=document.owner_id,
+        content_hash=document.content_hash,
         file_size_bytes=document.file_size_bytes,
         page_count=document.page_count,
         character_count=document.character_count,
@@ -430,6 +435,7 @@ async def _save_upload_to_temporary_pdf(
 ) -> SavedUpload:
     temporary_path: Path | None = None
     size_bytes = 0
+    content_hasher = hashlib.sha256()
 
     try:
         with NamedTemporaryFile(delete=False, suffix=".pdf") as temporary_file:
@@ -445,12 +451,17 @@ async def _save_upload_to_temporary_pdf(
                     )
 
                 temporary_file.write(chunk)
+                content_hasher.update(chunk)
     except Exception:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
         raise
 
-    return SavedUpload(path=temporary_path, size_bytes=size_bytes)
+    return SavedUpload(
+        path=temporary_path,
+        size_bytes=size_bytes,
+        content_hash=content_hasher.hexdigest(),
+    )
 
 
 def _validate_upload_content_type(upload: UploadFile) -> None:
@@ -552,6 +563,7 @@ async def create_document(
         document = document_service.create_pending_document(
             filename=filename,
             file_size_bytes=saved_upload.size_bytes,
+            content_hash=saved_upload.content_hash,
             source_path=str(persistent_path),
         )
         logger.info(
@@ -576,6 +588,11 @@ async def create_document(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error),
+        ) from error
+    except DocumentDuplicateError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This document already exists for the current user.",
         ) from error
     except DocumentStorageError as error:
         raise HTTPException(

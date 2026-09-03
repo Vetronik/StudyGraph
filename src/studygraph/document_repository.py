@@ -1,5 +1,5 @@
 from sqlalchemy import func, or_, select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, contains_eager
 
 from studygraph.document_model import Document, DocumentChunk
@@ -7,6 +7,10 @@ from studygraph.document_model import Document, DocumentChunk
 
 class DocumentRepositoryError(Exception):
     """Raised when document persistence fails."""
+
+
+class DocumentDuplicateError(DocumentRepositoryError):
+    """Raised when a document hash already exists for an owner."""
 
 
 class DocumentRepository:
@@ -20,6 +24,12 @@ class DocumentRepository:
             self._session.refresh(document)
         except SQLAlchemyError as error:
             self._session.rollback()
+            if isinstance(error, IntegrityError) and (
+                "uq_documents_owner_content_hash" in str(error.orig)
+            ):
+                raise DocumentDuplicateError(
+                    "Document already exists for this owner."
+                ) from error
             raise DocumentRepositoryError("Could not save document.") from error
 
         return document

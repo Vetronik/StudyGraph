@@ -2,7 +2,10 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from studygraph.document_model import Document, DocumentChunk
-from studygraph.document_repository import DocumentRepositoryError
+from studygraph.document_repository import (
+    DocumentDuplicateError,
+    DocumentRepositoryError,
+)
 from studygraph.pdf_text_extractor import ExtractedPdfDocument, ExtractedPdfPage
 from studygraph.text_chunker import chunk_text
 
@@ -150,11 +153,13 @@ class DocumentService:
         *,
         filename: str,
         file_size_bytes: int,
+        content_hash: str,
         source_path: str | None = None,
     ) -> Document:
         document = Document(
             filename=filename,
             owner_id=self._owner_id,
+            content_hash=content_hash,
             file_size_bytes=file_size_bytes,
             page_count=0,
             character_count=0,
@@ -167,6 +172,8 @@ class DocumentService:
         try:
             return self._repository.add(document)
         except DocumentRepositoryError as error:
+            if isinstance(error, DocumentDuplicateError):
+                raise error
             raise DocumentStorageError("Could not create document.") from error
 
     def create_document(

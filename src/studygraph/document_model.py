@@ -43,6 +43,7 @@ class Document(Base):
         server_default="local-user",
         index=True,
     )
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     file_size_bytes: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

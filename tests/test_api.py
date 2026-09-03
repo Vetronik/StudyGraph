@@ -1,3 +1,4 @@
+import hashlib
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,7 +25,10 @@ from studygraph.document_processing import (
     DocumentProcessingStateError,
     process_pending_document,
 )
-from studygraph.document_repository import DocumentRepositoryError
+from studygraph.document_repository import (
+    DocumentDuplicateError,
+    DocumentRepositoryError,
+)
 from studygraph.document_service import DEFAULT_OWNER_ID, DocumentService
 
 
@@ -52,6 +56,12 @@ class InMemoryDocumentRepository:
                 chunk.created_at = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
     def add(self, document: Document) -> Document:
+        if any(
+            existing.owner_id == document.owner_id
+            and existing.content_hash == document.content_hash
+            for existing in self._documents.values()
+        ):
+            raise DocumentDuplicateError("Document already exists.")
         document.id = self._next_id
         if document.owner_id is None:
             document.owner_id = DEFAULT_OWNER_ID
@@ -331,6 +341,7 @@ def test_create_document_stores_valid_pdf(
         "id": 1,
         "filename": "lecture.pdf",
         "owner_id": DEFAULT_OWNER_ID,
+        "content_hash": hashlib.sha256(pdf_path.read_bytes()).hexdigest(),
         "file_size_bytes": pdf_path.stat().st_size,
         "page_count": 0,
         "character_count": 0,
@@ -340,6 +351,26 @@ def test_create_document_stores_valid_pdf(
         "created_at": "2026-08-15T12:00:00Z",
     }
     assert document_repository.count() == 1
+
+
+def test_create_document_rejects_duplicate_for_same_owner(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(pdf_path, "Duplicate document")
+    files = {
+        "file": ("lecture.pdf", pdf_path.read_bytes(), "application/pdf"),
+    }
+
+    assert client.post("/documents", files=files).status_code == 202
+    duplicate_response = client.post("/documents", files=files)
+
+    assert duplicate_response.status_code == 409
+    assert duplicate_response.json() == {
+        "detail": "This document already exists for the current user."
+    }
 
 
 def test_create_document_returns_generated_id(
