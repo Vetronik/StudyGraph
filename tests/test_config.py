@@ -4,6 +4,7 @@ from studygraph.config import (
     LOG_LEVEL_ENV_VAR,
     ConfigurationError,
     get_log_level,
+    get_max_processing_attempts,
 )
 
 
@@ -30,3 +31,11 @@ def test_get_log_level_rejects_invalid_value(
 
     with pytest.raises(ConfigurationError, match=LOG_LEVEL_ENV_VAR):
         get_log_level()
+
+
+def test_max_processing_attempts_can_be_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STUDYGRAPH_MAX_PROCESSING_ATTEMPTS", "4")
+
+    assert get_max_processing_attempts() == 4

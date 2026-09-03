@@ -10,6 +10,7 @@ from studygraph.document_processing import (
     DocumentProcessingLimits,
     process_pending_document,
 )
+from studygraph.document_worker import has_reached_retry_limit
 
 
 class RecordingDocumentService:
@@ -171,3 +172,21 @@ def test_process_pending_document_marks_failed_pdf(
     assert service.failure_message is not None
     assert service.failure_message.startswith("Could not read PDF:")
     assert "document_processing_failed document_id=8" in caplog.text
+
+
+def test_worker_retry_limit_is_reached_at_configured_attempt_count() -> None:
+    document = Document(
+        id=9,
+        filename="lecture.pdf",
+        owner_id="local-user",
+        file_size_bytes=100,
+        page_count=0,
+        character_count=0,
+        extracted_text="",
+        status="failed",
+        processing_error="broken",
+        processing_attempts=3,
+    )
+
+    assert has_reached_retry_limit(document, max_attempts=3)
+    assert not has_reached_retry_limit(document, max_attempts=4)
