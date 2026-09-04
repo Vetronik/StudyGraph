@@ -1,7 +1,7 @@
 """add document processing metadata
 
-Revision ID: 0003_add_document_processing_metadata
-Revises: 0002_create_document_chunks_table
+Revision ID: 0003
+Revises: 0002
 Create Date: 2026-08-31 00:00:00.000000
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0003_add_document_processing_metadata"
-down_revision: str | None = "0002_create_document_chunks_table"
+revision: str = "0003"
+down_revision: str | None = "0002"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

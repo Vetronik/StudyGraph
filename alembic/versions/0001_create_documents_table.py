@@ -1,6 +1,6 @@
 """create documents table
 
-Revision ID: 0001_create_documents_table
+Revision ID: 0001
 Revises:
 Create Date: 2026-08-15 00:00:00.000000
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0001_create_documents_table"
+revision: str = "0001"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

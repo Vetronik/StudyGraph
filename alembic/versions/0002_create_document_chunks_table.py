@@ -1,7 +1,7 @@
 """create document chunks table
 
-Revision ID: 0002_create_document_chunks_table
-Revises: 0001_create_documents_table
+Revision ID: 0002
+Revises: 0001
 Create Date: 2026-08-21 00:00:00.000000
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0002_create_document_chunks_table"
-down_revision: str | None = "0001_create_documents_table"
+revision: str = "0002"
+down_revision: str | None = "0001"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

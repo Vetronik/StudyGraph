@@ -1,7 +1,7 @@
 """add document owner id
 
-Revision ID: 0004_add_document_owner_id
-Revises: 0003_add_document_processing_metadata
+Revision ID: 0004
+Revises: 0003
 Create Date: 2026-08-31 00:00:00.000000
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0004_add_document_owner_id"
-down_revision: str | None = "0003_add_document_processing_metadata"
+revision: str = "0004"
+down_revision: str | None = "0003"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

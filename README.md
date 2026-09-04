@@ -118,6 +118,36 @@ python -m alembic upgrade head
 
 ## Running the Application ▶️
 
+### Recommended: run the complete local stack with Docker
+
+This is the easiest way to use StudyGraph on a laptop. Docker starts
+PostgreSQL and the API; database migrations run automatically before the API
+starts. Uploaded PDFs are kept in `data/documents` on the host.
+
+Copy the example configuration once:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Build and start the application:
+
+```powershell
+docker compose up --build
+```
+
+Open <http://127.0.0.1:8000/> for the web interface or
+<http://127.0.0.1:8000/docs> for the API documentation. Stop the stack with
+`Ctrl+C`; run `docker compose down` later to remove the containers while
+keeping the database volume.
+
+To run it in the background, use `docker compose up --build -d` and inspect
+the logs with `docker compose logs -f api`.
+
+The current application processes an upload as a background task in the API
+container. The separate CLI worker remains available for recovery and manual
+processing with `studygraph --process-pending`.
+
 Start the API:
 
 ```powershell
@@ -237,15 +267,20 @@ python -m pytest -m postgresql
 The integration tests require `TEST_DATABASE_URL` and a dedicated test
 database. They must never run against personal or production data.
 
-## Roadmap 🗺️
+## Recommended next milestones 🗺️
 
-1. Add worker observability and stronger recovery for interrupted jobs.
-2. Add OCR support for scanned PDFs.
-3. Combine full-text and semantic retrieval into hybrid search.
-4. Replace the development embedding provider with a production model provider.
-5. Add an LLM provider interface for cited RAG answers.
-6. Add refresh tokens and optional external identity-provider integration.
-7. Build quizzes, flashcards, collections, and learning progress tracking.
+1. Add a real continuously running worker and job observability so processing
+   survives API restarts reliably.
+2. Add OCR support for scanned PDFs and tests for representative documents.
+3. Combine full-text and semantic retrieval into hybrid search and evaluate it
+   with a small fixed search dataset.
+4. Replace the deterministic embedding provider with a configurable production
+   provider.
+5. Add an LLM provider interface for cited RAG answers, with token/cost and
+   privacy controls.
+6. Build quizzes, flashcards, collections, and learning progress tracking.
+7. Harden authentication and deployment settings before exposing the service
+   beyond the laptop.
 
 ## Contributing 🤝
 

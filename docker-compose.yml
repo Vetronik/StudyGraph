@@ -16,5 +16,28 @@ services:
       timeout: 5s
       retries: 10
 
+  api:
+    build:
+      context: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-studygraph_user}:${POSTGRES_PASSWORD:-studygraph_password}@postgres:5432/${POSTGRES_DB:-studygraph}
+      STUDYGRAPH_AUTH_SECRET: ${STUDYGRAPH_AUTH_SECRET:-development-only-change-this-secret-change-me}
+      STUDYGRAPH_REQUIRE_AUTH_TOKEN: ${STUDYGRAPH_REQUIRE_AUTH_TOKEN:-false}
+      STUDYGRAPH_DOCUMENT_STORAGE_DIR: /app/data/documents
+      STUDYGRAPH_LOG_LEVEL: ${STUDYGRAPH_LOG_LEVEL:-INFO}
+      STUDYGRAPH_MAX_UPLOAD_BYTES: ${STUDYGRAPH_MAX_UPLOAD_BYTES:-10485760}
+      STUDYGRAPH_MAX_DOCUMENT_PAGES: ${STUDYGRAPH_MAX_DOCUMENT_PAGES:-500}
+      STUDYGRAPH_MAX_DOCUMENT_CHARACTERS: ${STUDYGRAPH_MAX_DOCUMENT_CHARACTERS:-1000000}
+      STUDYGRAPH_MAX_PROCESSING_ATTEMPTS: ${STUDYGRAPH_MAX_PROCESSING_ATTEMPTS:-3}
+      STUDYGRAPH_REQUIRE_USER_HEADER: ${STUDYGRAPH_REQUIRE_USER_HEADER:-false}
+      STUDYGRAPH_EMBEDDING_DIMENSIONS: ${STUDYGRAPH_EMBEDDING_DIMENSIONS:-64}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:

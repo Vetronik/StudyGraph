@@ -1,7 +1,7 @@
 """add processing attempts
 
-Revision ID: 0008_add_processing_attempts
-Revises: 0007_add_document_source_path
+Revision ID: 0008
+Revises: 0007
 Create Date: 2026-09-03 00:00:00.000000
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0008_add_processing_attempts"
-down_revision: str | None = "0007_add_document_source_path"
+revision: str = "0008"
+down_revision: str | None = "0007"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

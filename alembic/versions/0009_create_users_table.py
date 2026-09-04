@@ -1,7 +1,7 @@
 """create users table
 
-Revision ID: 0009_create_users_table
-Revises: 0008_add_processing_attempts
+Revision ID: 0009
+Revises: 0008
 Create Date: 2026-09-03 00:00:00.000000
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0009_create_users_table"
-down_revision: str | None = "0008_add_processing_attempts"
+revision: str = "0009"
+down_revision: str | None = "0008"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
