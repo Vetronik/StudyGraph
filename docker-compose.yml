@@ -1,6 +1,7 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-studygraph_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-studygraph_password}
@@ -17,6 +18,7 @@ services:
       retries: 10
 
   api:
+    restart: unless-stopped
     build:
       context: .
     environment:
@@ -47,6 +49,7 @@ services:
         condition: service_healthy
 
   worker:
+    restart: unless-stopped
     build:
       context: .
     command: ["python", "-m", "studygraph.worker"]

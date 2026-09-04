@@ -1,0 +1,10 @@
+services:
+  api:
+    environment:
+      STUDYGRAPH_AUTH_SECRET: ${STUDYGRAPH_AUTH_SECRET:?Set STUDYGRAPH_AUTH_SECRET to a strong secret}
+      STUDYGRAPH_REQUIRE_AUTH_TOKEN: "true"
+      STUDYGRAPH_REQUIRE_USER_HEADER: "false"
+
+  worker:
+    environment:
+      STUDYGRAPH_AUTH_SECRET: ${STUDYGRAPH_AUTH_SECRET:?Set STUDYGRAPH_AUTH_SECRET to a strong secret}

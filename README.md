@@ -144,6 +144,18 @@ keeping the database volume.
 To run it in the background, use `docker compose up --build -d` and inspect
 the logs with `docker compose logs -f api`.
 
+For a deployment that requires bearer authentication, set a strong secret and
+use the secure override:
+
+```powershell
+$env:STUDYGRAPH_AUTH_SECRET = "replace-with-a-random-secret-at-least-32-characters"
+docker compose -f docker-compose.yml -f docker-compose.secure.yml up --build -d
+```
+
+The secure override requires bearer tokens and disables the development owner
+header. The default compose command remains intentionally convenient for local
+single-user development.
+
 The current application processes an upload as a background task in the API
 container. The separate CLI worker remains available for recovery and manual
 processing with `studygraph --process-pending`.
