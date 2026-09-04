@@ -798,6 +798,32 @@ def test_hybrid_search_combines_full_text_and_semantic_results(
     assert response.json()["items"][0]["document_filename"] == "calculus.pdf"
 
 
+def test_document_summary_returns_source_references(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "lecture.pdf"
+    text = (
+        "StudyGraph stores university documents for learning. "
+        "The search index connects important concepts across pages."
+    )
+    write_pdf_with_text(pdf_path, text)
+
+    response = client.post(
+        "/documents",
+        files={"file": ("lecture.pdf", pdf_path.read_bytes(), "application/pdf")},
+    )
+    document_id = response.json()["id"]
+
+    summary_response = client.get(f"/documents/{document_id}/summary")
+
+    assert summary_response.status_code == 200
+    assert summary_response.json()["document_id"] == document_id
+    assert summary_response.json()["summary"]
+    assert summary_response.json()["sources"][0]["page_number"] == 1
+
+
 def test_search_document_chunks_supports_pagination(
     client: TestClient,
     tmp_path: Path,

@@ -63,6 +63,7 @@ from studygraph.document_service import (
     DocumentStorageError,
 )
 from studygraph.document_worker import process_document_job
+from studygraph.learning_service import ExtractiveSummaryService
 from studygraph.logging_config import configure_logging
 from studygraph.retrieval_service import RetrievalService
 from studygraph.user_repository import UserRepository
@@ -176,6 +177,20 @@ class RetrievalContextResponse(BaseModel):
     query: str
     sources: list[RetrievalSourceResponse]
     context: str
+
+
+class SummarySourceResponse(BaseModel):
+    chunk_id: int
+    chunk_position: int
+    page_number: int
+    text: str
+
+
+class SummaryResponse(BaseModel):
+    document_id: int
+    filename: str
+    summary: str
+    sources: list[SummarySourceResponse]
 
 
 class AuthRequest(BaseModel):
@@ -360,6 +375,12 @@ def get_retrieval_service(
     document_service: Annotated[DocumentService, Depends(get_document_service)],
 ) -> RetrievalService:
     return RetrievalService(document_service)
+
+
+def get_summary_service(
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+) -> ExtractiveSummaryService:
+    return ExtractiveSummaryService(document_service)
 
 
 def get_document_processor() -> DocumentProcessor:
@@ -875,6 +896,51 @@ def get_document(
         ) from error
 
     return _build_document_response(document)
+
+
+@app.get(
+    "/documents/{document_id}/summary",
+    response_model=SummaryResponse,
+    status_code=status.HTTP_200_OK,
+)
+def summarize_document(
+    document_id: int,
+    summary_service: Annotated[
+        ExtractiveSummaryService,
+        Depends(get_summary_service),
+    ],
+    max_sentences: Annotated[int, Query(ge=1, le=10)] = 5,
+) -> SummaryResponse:
+    try:
+        summary = summary_service.summarize(
+            document_id=document_id,
+            max_sentences=max_sentences,
+        )
+    except DocumentNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not create document summary.",
+        ) from error
+
+    return SummaryResponse(
+        document_id=summary.document_id,
+        filename=summary.filename,
+        summary=summary.summary,
+        sources=[
+            SummarySourceResponse(
+                chunk_id=source.chunk_id,
+                chunk_position=source.chunk_position,
+                page_number=source.page_number,
+                text=source.text,
+            )
+            for source in summary.sources
+        ],
+    )
 
 
 @app.post(
