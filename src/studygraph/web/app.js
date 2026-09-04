@@ -1,12 +1,18 @@
 const state = {
   documents: [],
   ownerId: localStorage.getItem("studygraph.ownerId") || "local-user",
+  accessToken: localStorage.getItem("studygraph.accessToken") || "",
   selectedDocumentId: null,
 };
 const OWNER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,119}$/;
 
 const elements = {
   chunkList: document.querySelector("#chunk-list"),
+  authForm: document.querySelector("#auth-form"),
+  authUsername: document.querySelector("#auth-username"),
+  authPassword: document.querySelector("#auth-password"),
+  registerButton: document.querySelector("#register-button"),
+  logoutButton: document.querySelector("#logout-button"),
   deleteButton: document.querySelector("#delete-button"),
   documentCount: document.querySelector("#document-count"),
   documentDetail: document.querySelector("#document-detail"),
@@ -56,12 +62,71 @@ async function requestNoContent(url, options = {}) {
 
 function withOwnerHeader(options = {}) {
   const headers = new Headers(options.headers || {});
-  headers.set("X-StudyGraph-User", state.ownerId);
+  if (state.accessToken) {
+    headers.set("Authorization", `Bearer ${state.accessToken}`);
+  } else {
+    headers.set("X-StudyGraph-User", state.ownerId);
+  }
 
   return {
     ...options,
     headers,
   };
+}
+
+function updateAuthControls() {
+  elements.logoutButton.hidden = !state.accessToken;
+  elements.registerButton.hidden = Boolean(state.accessToken);
+}
+
+async function login(username, password) {
+  const response = await requestJson("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  state.accessToken = response.access_token;
+  localStorage.setItem("studygraph.accessToken", state.accessToken);
+  state.ownerId = username;
+  localStorage.setItem("studygraph.ownerId", username);
+  elements.ownerInput.value = username;
+  updateAuthControls();
+  await refreshWorkspace();
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  try {
+    await login(elements.authUsername.value.trim(), elements.authPassword.value);
+    showNotice("Logged in.", "success");
+  } catch (error) {
+    showNotice(getErrorMessage(error), "error");
+  }
+}
+
+async function handleRegister() {
+  try {
+    await requestJson("/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: elements.authUsername.value.trim(),
+        password: elements.authPassword.value,
+      }),
+    });
+    await login(elements.authUsername.value.trim(), elements.authPassword.value);
+    showNotice("Account created and logged in.", "success");
+  } catch (error) {
+    showNotice(getErrorMessage(error), "error");
+  }
+}
+
+function handleLogout() {
+  state.accessToken = "";
+  localStorage.removeItem("studygraph.accessToken");
+  updateAuthControls();
+  clearSelection();
+  refreshWorkspace().catch(() => undefined);
 }
 
 function getErrorMessage(error) {
@@ -399,6 +464,9 @@ async function handleDelete() {
 }
 
 elements.uploadForm.addEventListener("submit", handleUpload);
+elements.authForm.addEventListener("submit", handleLogin);
+elements.registerButton.addEventListener("click", handleRegister);
+elements.logoutButton.addEventListener("click", handleLogout);
 elements.searchForm.addEventListener("submit", handleSearch);
 elements.refreshButton.addEventListener("click", async () => {
   await refreshWorkspace().catch((error) => {
@@ -437,6 +505,7 @@ elements.ownerInput.addEventListener("change", async () => {
 });
 
 refreshWorkspace().catch((error) => showNotice(getErrorMessage(error), "error"));
+updateAuthControls();
 
 setInterval(() => {
   refreshDocuments().catch(() => undefined);

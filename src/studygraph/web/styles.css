@@ -70,6 +70,22 @@ button:disabled {
   gap: 10px;
 }
 
+.auth-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.auth-control input {
+  width: 120px;
+  min-height: 38px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0 8px;
+  color: var(--text);
+}
+
 .owner-control {
   display: grid;
   gap: 4px;

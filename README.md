@@ -225,6 +225,10 @@ After login, send the returned token as a bearer token:
 curl -H "Authorization: Bearer <access-token>" http://127.0.0.1:8000/documents
 ```
 
+The web interface also provides login, registration, and logout controls. To
+require bearer authentication in a local deployment, set
+`STUDYGRAPH_REQUIRE_AUTH_TOKEN=true` in `.env` and use the account controls.
+
 Register and log in with the API:
 
 ```powershell
