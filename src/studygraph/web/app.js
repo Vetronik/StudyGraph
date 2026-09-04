@@ -340,15 +340,56 @@ async function showQuiz() {
   try {
     const quiz = await requestJson(`/documents/${state.selectedDocumentId}/quiz?count=5`);
     elements.learningOutput.replaceChildren(
-      ...quiz.questions.map((question, index) => {
-        const item = document.createElement("article");
-        item.className = "quiz-item";
-        item.append(
-          createTextElement("strong", "", `${index + 1}. ${question.question}`),
-          createTextElement("div", "item-meta", `Answer: ${question.answer} | Page ${question.page_number}`),
-        );
-        return item;
-      }),
+        ...quiz.questions.map((question, index) => {
+          const item = document.createElement("article");
+          item.className = "quiz-item";
+        const feedback = createTextElement("div", "item-meta", "");
+        const submitAnswer = async (answer) => {
+          try {
+            const result = await requestJson(
+              `/documents/${state.selectedDocumentId}/quiz/validate`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question_index: index, answer, count: 5 }),
+              },
+            );
+            feedback.textContent = result.correct ? "Correct" : "Try again";
+            feedback.className = result.correct ? "quiz-correct" : "quiz-wrong";
+          } catch (error) {
+            feedback.textContent = getErrorMessage(error);
+            feedback.className = "item-meta";
+          }
+        };
+        item.append(createTextElement("strong", "", `${index + 1}. ${question.question}`));
+        if (question.question_type === "multiple_choice") {
+          const options = document.createElement("div");
+          options.className = "quiz-options";
+          for (const option of question.options) {
+            const button = createTextElement("button", "icon-button", option);
+            button.type = "button";
+            button.addEventListener("click", () => submitAnswer(option));
+            options.append(button);
+          }
+          item.append(options);
+        } else {
+          const form = document.createElement("form");
+          form.className = "quiz-answer-form";
+          const input = document.createElement("input");
+          input.required = true;
+          input.placeholder = "Your answer";
+          const button = createTextElement("button", "secondary-button", "Check");
+          button.type = "submit";
+          form.append(input, button);
+          form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            submitAnswer(input.value);
+          });
+          item.append(form);
+        }
+        item.append(feedback);
+          return item;
+        }),
     );
   } catch (error) {
     showNotice(getErrorMessage(error), "error");

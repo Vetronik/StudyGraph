@@ -207,8 +207,10 @@ class SummaryResponse(BaseModel):
 
 
 class QuizQuestionResponse(BaseModel):
+    question_type: str
     question: str
     answer: str
+    options: list[str]
     chunk_id: int
     chunk_position: int
     page_number: int
@@ -218,6 +220,17 @@ class QuizResponse(BaseModel):
     document_id: int
     filename: str
     questions: list[QuizQuestionResponse]
+
+
+class QuizValidationRequest(BaseModel):
+    question_index: int = Field(ge=0, le=19)
+    answer: str = Field(min_length=1, max_length=200)
+    count: int = Field(default=5, ge=1, le=20)
+
+
+class QuizValidationResponse(BaseModel):
+    question_index: int
+    correct: bool
 
 
 class ProgressResponse(BaseModel):
@@ -1066,14 +1079,50 @@ def generate_document_quiz(
         filename=quiz.filename,
         questions=[
             QuizQuestionResponse(
+                question_type=question.question_type,
                 question=question.question,
                 answer=question.answer,
+                options=question.options,
                 chunk_id=question.chunk_id,
                 chunk_position=question.chunk_position,
                 page_number=question.page_number,
             )
             for question in quiz.questions
         ],
+    )
+
+
+@app.post(
+    "/documents/{document_id}/quiz/validate",
+    response_model=QuizValidationResponse,
+    status_code=status.HTTP_200_OK,
+)
+def validate_document_quiz_answer(
+    document_id: int,
+    request: QuizValidationRequest,
+    quiz_service: Annotated[LocalQuizService, Depends(get_quiz_service)],
+) -> QuizValidationResponse:
+    try:
+        correct = quiz_service.validate_answer(
+            document_id=document_id,
+            question_index=request.question_index,
+            submitted_answer=request.answer,
+            count=request.count,
+        )
+    except DocumentNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except (DocumentReadError, IndexError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question index is not available for this quiz.",
+        ) from error
+
+    return QuizValidationResponse(
+        question_index=request.question_index,
+        correct=correct,
     )
 
 

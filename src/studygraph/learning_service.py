@@ -27,8 +27,10 @@ class DocumentSummary:
 
 @dataclass(frozen=True)
 class QuizQuestion:
+    question_type: str
     question: str
     answer: str
+    options: list[str]
     chunk_id: int
     chunk_position: int
     page_number: int
@@ -120,7 +122,7 @@ class ExtractiveSummaryService:
 
 
 class LocalQuizService:
-    """Generate deterministic cloze questions from stored chunks."""
+    """Generate deterministic cloze and multiple-choice questions."""
 
     def __init__(self, document_service: DocumentContentProtocol) -> None:
         self._document_service = document_service
@@ -129,6 +131,7 @@ class LocalQuizService:
         document = self._document_service.get_document(document_id)
         chunk_list = self._document_service.list_document_chunks(document_id)
         questions: list[QuizQuestion] = []
+        answer_pool = self._collect_answers(chunk_list.chunks)
         for chunk in chunk_list.chunks:
             for sentence in SENTENCE_PATTERN.split(chunk.text):
                 words = WORD_PATTERN.findall(sentence)
@@ -138,10 +141,20 @@ class LocalQuizService:
                 question = sentence.replace(answer, "____", 1).strip()
                 if question == sentence.strip():
                     continue
+                question_type = (
+                    "cloze" if len(questions) % 2 == 0 else "multiple_choice"
+                )
+                options = (
+                    self._build_options(answer, answer_pool)
+                    if question_type == "multiple_choice"
+                    else []
+                )
                 questions.append(
                     QuizQuestion(
+                        question_type=question_type,
                         question=question,
                         answer=answer,
+                        options=options,
                         chunk_id=chunk.id,
                         chunk_position=chunk.position,
                         page_number=chunk.page_number,
@@ -150,3 +163,43 @@ class LocalQuizService:
                 if len(questions) >= count:
                     return DocumentQuiz(document.id, document.filename, questions)
         return DocumentQuiz(document.id, document.filename, questions)
+
+    def validate_answer(
+        self,
+        *,
+        document_id: int,
+        question_index: int,
+        submitted_answer: str,
+        count: int,
+    ) -> bool:
+        quiz = self.generate(
+            document_id=document_id,
+            count=max(count, question_index + 1),
+        )
+        if question_index < 0 or question_index >= len(quiz.questions):
+            raise IndexError("question_index is outside the generated quiz.")
+        return _normalize_answer(submitted_answer) == _normalize_answer(
+            quiz.questions[question_index].answer
+        )
+
+    def _collect_answers(self, chunks: list[DocumentChunk]) -> list[str]:
+        answers = {
+            word
+            for chunk in chunks
+            for sentence in SENTENCE_PATTERN.split(chunk.text)
+            for word in WORD_PATTERN.findall(sentence)
+        }
+        return sorted(answers, key=lambda item: (len(item), item.lower()))
+
+    def _build_options(self, answer: str, answer_pool: list[str]) -> list[str]:
+        distractors = [
+            candidate
+            for candidate in answer_pool
+            if candidate.lower() != answer.lower()
+        ]
+        options = [answer, *distractors[-2:]]
+        return sorted(options, key=str.casefold)
+
+
+def _normalize_answer(value: str) -> str:
+    return " ".join(value.strip().casefold().split())

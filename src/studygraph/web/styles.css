@@ -404,6 +404,34 @@ h2 {
   background: #f8fafc;
 }
 
+.quiz-options,
+.quiz-answer-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quiz-answer-form input {
+  min-width: 0;
+  flex: 1;
+  min-height: 38px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0 10px;
+}
+
+.quiz-correct {
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.quiz-wrong {
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .detail-title {
   overflow-wrap: anywhere;
   font-size: 18px;

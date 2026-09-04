@@ -927,6 +927,43 @@ def test_document_quiz_returns_cloze_question_with_source(
     assert question["page_number"] == 1
 
 
+def test_document_quiz_supports_multiple_choice_and_validation(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(
+        pdf_path,
+        "StudyGraph stores documents for learning. Retrieval connects concepts.",
+    )
+    response = client.post(
+        "/documents",
+        files={"file": ("lecture.pdf", pdf_path.read_bytes(), "application/pdf")},
+    )
+    document_id = response.json()["id"]
+
+    quiz_response = client.get(f"/documents/{document_id}/quiz?count=2")
+    assert quiz_response.status_code == 200
+    questions = quiz_response.json()["questions"]
+    assert [question["question_type"] for question in questions] == [
+        "cloze",
+        "multiple_choice",
+    ]
+    assert len(questions[1]["options"]) >= 2
+
+    validation = client.post(
+        f"/documents/{document_id}/quiz/validate",
+        json={
+            "question_index": 0,
+            "answer": questions[0]["answer"],
+            "count": 2,
+        },
+    )
+    assert validation.status_code == 200
+    assert validation.json()["correct"] is True
+
+
 def test_document_progress_tracks_reviews_and_mastery(
     client: TestClient,
     tmp_path: Path,
