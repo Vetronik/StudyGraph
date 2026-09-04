@@ -66,6 +66,7 @@ from studygraph.document_worker import process_document_job
 from studygraph.embedding_service import get_embedding_provider
 from studygraph.learning_service import ExtractiveSummaryService, LocalQuizService
 from studygraph.logging_config import configure_logging
+from studygraph.rag_service import RAGService
 from studygraph.retrieval_service import RetrievalService
 from studygraph.user_repository import UserRepository
 
@@ -164,6 +165,11 @@ class RetrievalContextRequest(BaseModel):
     max_chunks: int = Field(default=5, ge=1, le=20)
 
 
+class RAGAnswerRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=200)
+    max_chunks: int = Field(default=5, ge=1, le=20)
+
+
 class RetrievalSourceResponse(BaseModel):
     source_number: int
     document_id: int
@@ -178,6 +184,12 @@ class RetrievalContextResponse(BaseModel):
     query: str
     sources: list[RetrievalSourceResponse]
     context: str
+
+
+class RAGAnswerResponse(BaseModel):
+    query: str
+    answer: str
+    sources: list[RetrievalSourceResponse]
 
 
 class SummarySourceResponse(BaseModel):
@@ -403,6 +415,12 @@ def get_retrieval_service(
     document_service: Annotated[DocumentService, Depends(get_document_service)],
 ) -> RetrievalService:
     return RetrievalService(document_service)
+
+
+def get_rag_service(
+    retrieval_service: Annotated[RetrievalService, Depends(get_retrieval_service)],
+) -> RAGService:
+    return RAGService(retrieval_service)
 
 
 def get_summary_service(
@@ -874,6 +892,49 @@ def build_rag_context(
             for source in retrieval_context.sources
         ],
         context=retrieval_context.context,
+    )
+
+
+@app.post(
+    "/ask",
+    response_model=RAGAnswerResponse,
+    status_code=status.HTTP_200_OK,
+)
+def ask_documents(
+    request: RAGAnswerRequest,
+    rag_service: Annotated[RAGService, Depends(get_rag_service)],
+) -> RAGAnswerResponse:
+    try:
+        result = rag_service.answer(
+            query=request.query,
+            max_chunks=request.max_chunks,
+        )
+    except DocumentSearchQueryError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not answer the document question.",
+        ) from error
+
+    return RAGAnswerResponse(
+        query=result.query,
+        answer=result.answer,
+        sources=[
+            RetrievalSourceResponse(
+                source_number=source.source_number,
+                document_id=source.document_id,
+                document_filename=source.document_filename,
+                chunk_id=source.chunk_id,
+                chunk_position=source.chunk_position,
+                page_number=source.page_number,
+                text=source.text,
+            )
+            for source in result.sources
+        ],
     )
 
 

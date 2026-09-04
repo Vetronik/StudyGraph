@@ -193,6 +193,7 @@ Useful endpoints:
 | `PUT` | `/documents/{id}/progress` | Mark a document mastered or unmastered |
 | `POST` | `/documents/{id}/retry` | Queue failed document processing again |
 | `POST` | `/rag/context` | Build source-grounded retrieval context |
+| `POST` | `/ask` | Return an offline source-cited answer |
 | `DELETE` | `/documents/{id}` | Delete a document and its stored PDF |
 
 Interactive API documentation is available at
@@ -303,10 +304,10 @@ stack are implemented. Embeddings are configurable through
 local default, while `openai-compatible` uses the configured API URL, model,
 and key. The database schema currently uses 64-dimensional vectors.
 
-The next larger milestones are:
+The local `/ask` endpoint now provides a source-cited offline fallback behind an
+`AnswerProviderProtocol`. The next larger milestones are:
 
-1. Add an LLM provider interface for cited RAG answers, with token/cost and
-   privacy controls.
+1. Add an LLM-backed answer provider with token/cost and privacy controls.
 2. Improve quizzes with multiple question types and answer validation.
 3. Add flashcards and collections on top of the existing document and progress
    model.

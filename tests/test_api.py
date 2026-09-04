@@ -873,6 +873,34 @@ def test_document_summary_returns_source_references(
     assert summary_response.json()["sources"][0]["page_number"] == 1
 
 
+def test_ask_returns_answer_with_source_reference(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(
+        pdf_path,
+        "StudyGraph stores university documents for learning. "
+        "Retrieval connects concepts.",
+    )
+
+    response = client.post(
+        "/documents",
+        files={"file": ("lecture.pdf", pdf_path.read_bytes(), "application/pdf")},
+    )
+    assert response.status_code == 202
+
+    answer_response = client.post(
+        "/ask",
+        json={"query": "learning"},
+    )
+
+    assert answer_response.status_code == 200
+    assert "[source 1]" in answer_response.json()["answer"]
+    assert answer_response.json()["sources"][0]["page_number"] == 1
+
+
 def test_document_quiz_returns_cloze_question_with_source(
     client: TestClient,
     tmp_path: Path,
