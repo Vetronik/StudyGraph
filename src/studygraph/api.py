@@ -63,7 +63,7 @@ from studygraph.document_service import (
     DocumentStorageError,
 )
 from studygraph.document_worker import process_document_job
-from studygraph.learning_service import ExtractiveSummaryService
+from studygraph.learning_service import ExtractiveSummaryService, LocalQuizService
 from studygraph.logging_config import configure_logging
 from studygraph.retrieval_service import RetrievalService
 from studygraph.user_repository import UserRepository
@@ -191,6 +191,20 @@ class SummaryResponse(BaseModel):
     filename: str
     summary: str
     sources: list[SummarySourceResponse]
+
+
+class QuizQuestionResponse(BaseModel):
+    question: str
+    answer: str
+    chunk_id: int
+    chunk_position: int
+    page_number: int
+
+
+class QuizResponse(BaseModel):
+    document_id: int
+    filename: str
+    questions: list[QuizQuestionResponse]
 
 
 class AuthRequest(BaseModel):
@@ -381,6 +395,12 @@ def get_summary_service(
     document_service: Annotated[DocumentService, Depends(get_document_service)],
 ) -> ExtractiveSummaryService:
     return ExtractiveSummaryService(document_service)
+
+
+def get_quiz_service(
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+) -> LocalQuizService:
+    return LocalQuizService(document_service)
 
 
 def get_document_processor() -> DocumentProcessor:
@@ -939,6 +959,45 @@ def summarize_document(
                 text=source.text,
             )
             for source in summary.sources
+        ],
+    )
+
+
+@app.get(
+    "/documents/{document_id}/quiz",
+    response_model=QuizResponse,
+    status_code=status.HTTP_200_OK,
+)
+def generate_document_quiz(
+    document_id: int,
+    quiz_service: Annotated[LocalQuizService, Depends(get_quiz_service)],
+    count: Annotated[int, Query(ge=1, le=20)] = 5,
+) -> QuizResponse:
+    try:
+        quiz = quiz_service.generate(document_id=document_id, count=count)
+    except DocumentNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not create document quiz.",
+        ) from error
+
+    return QuizResponse(
+        document_id=quiz.document_id,
+        filename=quiz.filename,
+        questions=[
+            QuizQuestionResponse(
+                question=question.question,
+                answer=question.answer,
+                chunk_id=question.chunk_id,
+                chunk_position=question.chunk_position,
+                page_number=question.page_number,
+            )
+            for question in quiz.questions
         ],
     )
 

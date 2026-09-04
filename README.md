@@ -175,6 +175,7 @@ Useful endpoints:
 | `GET` | `/semantic-search?query=...` | Semantic search over document chunks |
 | `GET` | `/hybrid-search?query=...` | Combined full-text and semantic search |
 | `GET` | `/documents/{id}/summary` | Create a source-referenced local summary |
+| `GET` | `/documents/{id}/quiz` | Generate local source-referenced cloze questions |
 | `POST` | `/documents/{id}/retry` | Queue failed document processing again |
 | `POST` | `/rag/context` | Build source-grounded retrieval context |
 | `DELETE` | `/documents/{id}` | Delete a document and its stored PDF |

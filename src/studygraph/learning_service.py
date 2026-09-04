@@ -25,6 +25,22 @@ class DocumentSummary:
     sources: list[SummarySource]
 
 
+@dataclass(frozen=True)
+class QuizQuestion:
+    question: str
+    answer: str
+    chunk_id: int
+    chunk_position: int
+    page_number: int
+
+
+@dataclass(frozen=True)
+class DocumentQuiz:
+    document_id: int
+    filename: str
+    questions: list[QuizQuestion]
+
+
 class DocumentContentProtocol(Protocol):
     def get_document(self, document_id: int) -> Document: ...
 
@@ -101,3 +117,36 @@ class ExtractiveSummaryService:
         words = WORD_PATTERN.findall(sentence.lower())
         frequency_score = sum(word_frequency[word] for word in words)
         return frequency_score / max(len(words), 1) + 1 / (position + 1)
+
+
+class LocalQuizService:
+    """Generate deterministic cloze questions from stored chunks."""
+
+    def __init__(self, document_service: DocumentContentProtocol) -> None:
+        self._document_service = document_service
+
+    def generate(self, *, document_id: int, count: int) -> DocumentQuiz:
+        document = self._document_service.get_document(document_id)
+        chunk_list = self._document_service.list_document_chunks(document_id)
+        questions: list[QuizQuestion] = []
+        for chunk in chunk_list.chunks:
+            for sentence in SENTENCE_PATTERN.split(chunk.text):
+                words = WORD_PATTERN.findall(sentence)
+                if not words:
+                    continue
+                answer = max(words, key=len)
+                question = sentence.replace(answer, "____", 1).strip()
+                if question == sentence.strip():
+                    continue
+                questions.append(
+                    QuizQuestion(
+                        question=question,
+                        answer=answer,
+                        chunk_id=chunk.id,
+                        chunk_position=chunk.position,
+                        page_number=chunk.page_number,
+                    )
+                )
+                if len(questions) >= count:
+                    return DocumentQuiz(document.id, document.filename, questions)
+        return DocumentQuiz(document.id, document.filename, questions)

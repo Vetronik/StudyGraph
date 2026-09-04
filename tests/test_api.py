@@ -824,6 +824,32 @@ def test_document_summary_returns_source_references(
     assert summary_response.json()["sources"][0]["page_number"] == 1
 
 
+def test_document_quiz_returns_cloze_question_with_source(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(
+        pdf_path,
+        "StudyGraph stores documents for learning and retrieval.",
+    )
+
+    response = client.post(
+        "/documents",
+        files={"file": ("lecture.pdf", pdf_path.read_bytes(), "application/pdf")},
+    )
+    document_id = response.json()["id"]
+
+    quiz_response = client.get(f"/documents/{document_id}/quiz?count=1")
+
+    assert quiz_response.status_code == 200
+    question = quiz_response.json()["questions"][0]
+    assert question["question"] == "____ stores documents for learning and retrieval."
+    assert question["answer"] == "StudyGraph"
+    assert question["page_number"] == 1
+
+
 def test_search_document_chunks_supports_pagination(
     client: TestClient,
     tmp_path: Path,
