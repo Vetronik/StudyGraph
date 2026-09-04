@@ -18,7 +18,7 @@ from studygraph.config import (
     get_max_document_characters,
     get_max_document_pages,
 )
-from studygraph.document_model import Document, DocumentChunk
+from studygraph.document_model import Document, DocumentChunk, LearningProgress
 from studygraph.document_processing import (
     DocumentProcessingFailed,
     DocumentProcessingLimits,
@@ -41,6 +41,7 @@ class InMemoryDocumentRepository:
         self._documents: dict[int, Document] = {}
         self._next_id = 1
         self._next_chunk_id = 1
+        self._learning_progress: dict[tuple[str, int], LearningProgress] = {}
 
     def _assign_chunk_metadata(self, document: Document) -> None:
         for chunk in document.chunks:
@@ -197,6 +198,54 @@ class InMemoryDocumentRepository:
 
     def count(self) -> int:
         return len(self._documents)
+
+    def get_learning_progress(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+    ) -> LearningProgress | None:
+        return self._learning_progress.get((owner_id, document_id))
+
+    def mark_learning_reviewed(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+    ) -> LearningProgress:
+        key = (owner_id, document_id)
+        progress = self._learning_progress.get(key)
+        if progress is None:
+            progress = LearningProgress(
+                owner_id=owner_id,
+                document_id=document_id,
+                review_count=0,
+                mastered=False,
+            )
+            self._learning_progress[key] = progress
+        progress.review_count += 1
+        progress.last_reviewed_at = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
+        return progress
+
+    def set_learning_mastered(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+        mastered: bool,
+    ) -> LearningProgress:
+        key = (owner_id, document_id)
+        progress = self._learning_progress.get(key)
+        if progress is None:
+            progress = LearningProgress(
+                owner_id=owner_id,
+                document_id=document_id,
+                review_count=0,
+                mastered=False,
+            )
+            self._learning_progress[key] = progress
+        progress.mastered = mastered
+        return progress
 
 
 class FailingDocumentReadRepository(InMemoryDocumentRepository):
@@ -848,6 +897,38 @@ def test_document_quiz_returns_cloze_question_with_source(
     assert question["question"] == "____ stores documents for learning and retrieval."
     assert question["answer"] == "StudyGraph"
     assert question["page_number"] == 1
+
+
+def test_document_progress_tracks_reviews_and_mastery(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(pdf_path, "StudyGraph learning material")
+
+    response = client.post(
+        "/documents",
+        files={"file": ("lecture.pdf", pdf_path.read_bytes(), "application/pdf")},
+    )
+    document_id = response.json()["id"]
+
+    initial = client.get(f"/documents/{document_id}/progress")
+    assert initial.status_code == 200
+    assert initial.json()["review_count"] == 0
+    assert initial.json()["mastered"] is False
+
+    reviewed = client.post(f"/documents/{document_id}/progress/review")
+    assert reviewed.status_code == 200
+    assert reviewed.json()["review_count"] == 1
+    assert reviewed.json()["last_reviewed_at"] is not None
+
+    mastered = client.put(
+        f"/documents/{document_id}/progress",
+        json={"mastered": True},
+    )
+    assert mastered.status_code == 200
+    assert mastered.json()["mastered"] is True
 
 
 def test_search_document_chunks_supports_pagination(

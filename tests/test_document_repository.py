@@ -232,3 +232,49 @@ def test_document_repository_deletes_document(
         repository.list_chunks(saved_document.id, owner_id=DEFAULT_OWNER_ID)
         == []
     )
+
+
+def test_document_repository_persists_learning_progress(
+    repository: DocumentRepository,
+) -> None:
+    document = repository.add(
+        Document(
+            filename="lecture.pdf",
+            page_count=1,
+            character_count=18,
+            extracted_text="Learning material",
+        )
+    )
+
+    assert repository.get_learning_progress(
+        document.id,
+        owner_id=DEFAULT_OWNER_ID,
+    ) is None
+
+    progress = repository.mark_learning_reviewed(
+        document.id,
+        owner_id=DEFAULT_OWNER_ID,
+    )
+    assert progress.review_count == 1
+    assert progress.last_reviewed_at is not None
+
+    progress = repository.mark_learning_reviewed(
+        document.id,
+        owner_id=DEFAULT_OWNER_ID,
+    )
+    assert progress.review_count == 2
+
+    progress = repository.set_learning_mastered(
+        document.id,
+        owner_id=DEFAULT_OWNER_ID,
+        mastered=True,
+    )
+    assert progress.mastered is True
+
+    loaded = repository.get_learning_progress(
+        document.id,
+        owner_id=DEFAULT_OWNER_ID,
+    )
+    assert loaded is not None
+    assert loaded.review_count == 2
+    assert loaded.mastered is True
