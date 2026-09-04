@@ -12,6 +12,10 @@ MAX_PROCESSING_ATTEMPTS_ENV_VAR = "STUDYGRAPH_MAX_PROCESSING_ATTEMPTS"
 REQUIRE_USER_HEADER_ENV_VAR = "STUDYGRAPH_REQUIRE_USER_HEADER"
 OCR_ENABLED_ENV_VAR = "STUDYGRAPH_OCR_ENABLED"
 OCR_LANGUAGE_ENV_VAR = "STUDYGRAPH_OCR_LANGUAGE"
+EMBEDDING_PROVIDER_ENV_VAR = "STUDYGRAPH_EMBEDDING_PROVIDER"
+EMBEDDING_MODEL_ENV_VAR = "STUDYGRAPH_EMBEDDING_MODEL"
+EMBEDDING_API_KEY_ENV_VAR = "STUDYGRAPH_EMBEDDING_API_KEY"
+EMBEDDING_API_URL_ENV_VAR = "STUDYGRAPH_EMBEDDING_API_URL"
 
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_DOCUMENT_STORAGE_DIR = "data/documents"
@@ -21,6 +25,9 @@ DEFAULT_MAX_DOCUMENT_PAGES = 500
 DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 DEFAULT_MAX_PROCESSING_ATTEMPTS = 3
 DEFAULT_OCR_LANGUAGE = "eng"
+DEFAULT_EMBEDDING_PROVIDER = "deterministic"
+DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
+DEFAULT_EMBEDDING_API_URL = "https://api.openai.com/v1/embeddings"
 VALID_LOG_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
 
 
@@ -177,6 +184,44 @@ def get_ocr_language() -> str:
             f"{OCR_LANGUAGE_ENV_VAR} must contain valid Tesseract language codes."
         )
     return value
+
+
+def get_embedding_provider_name() -> str:
+    value = os.environ.get(
+        EMBEDDING_PROVIDER_ENV_VAR,
+        DEFAULT_EMBEDDING_PROVIDER,
+    ).strip().lower()
+    if value not in {"deterministic", "openai-compatible"}:
+        raise ConfigurationError(
+            f"{EMBEDDING_PROVIDER_ENV_VAR} must be deterministic or "
+            "openai-compatible."
+        )
+    return value
+
+
+def get_embedding_model() -> str:
+    value = os.environ.get(EMBEDDING_MODEL_ENV_VAR, DEFAULT_EMBEDDING_MODEL).strip()
+    if not value:
+        raise ConfigurationError(f"{EMBEDDING_MODEL_ENV_VAR} must not be empty.")
+    return value
+
+
+def get_embedding_api_key() -> str:
+    return os.environ.get(EMBEDDING_API_KEY_ENV_VAR, "").strip()
+
+
+def get_embedding_api_url() -> str:
+    value = os.environ.get(
+        EMBEDDING_API_URL_ENV_VAR,
+        DEFAULT_EMBEDDING_API_URL,
+    ).strip()
+    if not value.startswith(("https://", "http://")):
+        raise ConfigurationError(
+            f"{EMBEDDING_API_URL_ENV_VAR} must be an HTTP(S) URL."
+        )
+    return value
+
+
 
 
 def get_log_level() -> str:

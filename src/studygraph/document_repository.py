@@ -5,7 +5,11 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, contains_eager
 
 from studygraph.document_model import Document, DocumentChunk, LearningProgress
-from studygraph.embedding_service import DeterministicHashEmbeddingProvider, Vector
+from studygraph.embedding_service import (
+    EmbeddingProviderProtocol,
+    Vector,
+    get_embedding_provider,
+)
 
 
 class DocumentRepositoryError(Exception):
@@ -17,8 +21,14 @@ class DocumentDuplicateError(DocumentRepositoryError):
 
 
 class DocumentRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self,
+        session: Session,
+        *,
+        embedding_provider: EmbeddingProviderProtocol | None = None,
+    ) -> None:
         self._session = session
+        self._embedding_provider = embedding_provider or get_embedding_provider()
 
     def add(self, document: Document) -> Document:
         try:
@@ -327,7 +337,7 @@ class DocumentRepository:
         limit: int,
         offset: int,
     ) -> tuple[list[DocumentChunk], int]:
-        query_embedding = DeterministicHashEmbeddingProvider().embed_texts([query])[0]
+        query_embedding = self._embedding_provider.embed_texts([query])[0]
         distance = DocumentChunk.embedding.op("<=>")(
             cast(query_embedding.vector, Vector())
         )

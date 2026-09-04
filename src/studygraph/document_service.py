@@ -6,7 +6,10 @@ from studygraph.document_repository import (
     DocumentDuplicateError,
     DocumentRepositoryError,
 )
-from studygraph.embedding_service import DeterministicHashEmbeddingProvider
+from studygraph.embedding_service import (
+    EmbeddingProviderProtocol,
+    get_embedding_provider,
+)
 from studygraph.pdf_text_extractor import ExtractedPdfDocument, ExtractedPdfPage
 from studygraph.text_chunker import chunk_text
 
@@ -162,9 +165,9 @@ def _iter_extractable_pages(
 
 def _build_document_chunks(
     extracted_document: ExtractedPdfDocument,
+    embedding_provider: EmbeddingProviderProtocol,
 ) -> list[DocumentChunk]:
     chunks: list[DocumentChunk] = []
-    embedding_provider = DeterministicHashEmbeddingProvider()
 
     for page in _iter_extractable_pages(extracted_document):
         page_chunks = chunk_text(page.text)
@@ -191,9 +194,11 @@ class DocumentService:
         repository: DocumentRepositoryProtocol,
         *,
         owner_id: str = DEFAULT_OWNER_ID,
+        embedding_provider: EmbeddingProviderProtocol | None = None,
     ) -> None:
         self._repository = repository
         self._owner_id = owner_id
+        self._embedding_provider = embedding_provider or get_embedding_provider()
 
     def create_pending_document(
         self,
@@ -241,7 +246,10 @@ class DocumentService:
             processing_error=None,
             source_path=source_path,
         )
-        document.chunks = _build_document_chunks(extracted_document)
+        document.chunks = _build_document_chunks(
+            extracted_document,
+            self._embedding_provider,
+        )
 
         try:
             return self._repository.add(document)
@@ -277,7 +285,10 @@ class DocumentService:
         document.extracted_text = extracted_document.text
         document.status = DOCUMENT_STATUS_PROCESSED
         document.processing_error = None
-        document.chunks = _build_document_chunks(extracted_document)
+        document.chunks = _build_document_chunks(
+            extracted_document,
+            self._embedding_provider,
+        )
 
         try:
             return self._repository.update(document)

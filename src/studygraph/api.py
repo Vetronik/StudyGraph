@@ -63,6 +63,7 @@ from studygraph.document_service import (
     DocumentStorageError,
 )
 from studygraph.document_worker import process_document_job
+from studygraph.embedding_service import get_embedding_provider
 from studygraph.learning_service import ExtractiveSummaryService, LocalQuizService
 from studygraph.logging_config import configure_logging
 from studygraph.retrieval_service import RetrievalService
@@ -390,9 +391,11 @@ def get_document_service(
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
     session: Annotated[Session, Depends(get_session)],
 ) -> DocumentService:
+    embedding_provider = get_embedding_provider()
     return DocumentService(
-        DocumentRepository(session),
+        DocumentRepository(session, embedding_provider=embedding_provider),
         owner_id=current_user.owner_id,
+        embedding_provider=embedding_provider,
     )
 
 

@@ -1,3 +1,6 @@
+import json
+import urllib.error
+import urllib.request
 from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
@@ -53,6 +56,10 @@ class EmbeddingProviderProtocol(Protocol):
     def embed_texts(self, texts: Sequence[str]) -> list[TextEmbedding]: ...
 
 
+class EmbeddingProviderError(RuntimeError):
+    """Raised when a configured embedding provider cannot be reached."""
+
+
 class DeterministicHashEmbeddingProvider:
     """Small local provider for tests and development, not semantic AI search."""
 
@@ -81,6 +88,97 @@ class DeterministicHashEmbeddingProvider:
             vector[index] += sign
 
         return _normalize_vector(vector)
+
+
+class OpenAICompatibleEmbeddingProvider:
+    """Small dependency-free client for OpenAI-compatible embedding APIs."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        api_url: str,
+        model: str,
+        dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS,
+        timeout_seconds: float = 30.0,
+    ) -> None:
+        if not api_key:
+            raise ValueError("api_key must not be empty.")
+        if dimensions <= 0:
+            raise ValueError("dimensions must be greater than 0.")
+        self.api_key = api_key
+        self.api_url = api_url
+        self.model = model
+        self.dimensions = dimensions
+        self.timeout_seconds = timeout_seconds
+
+    def embed_texts(self, texts: Sequence[str]) -> list[TextEmbedding]:
+        if not texts:
+            return []
+        payload = json.dumps(
+            {
+                "input": list(texts),
+                "model": self.model,
+                "dimensions": self.dimensions,
+            }
+        ).encode("utf-8")
+        request = urllib.request.Request(
+            self.api_url,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(
+                request,
+                timeout=self.timeout_seconds,
+            ) as response:
+                body = json.load(response)
+        except (OSError, urllib.error.URLError, json.JSONDecodeError) as error:
+            raise EmbeddingProviderError(
+                "Embedding provider request failed."
+            ) from error
+
+        try:
+            embeddings = sorted(body["data"], key=lambda item: item["index"])
+            result = [
+                TextEmbedding(text=text, vector=tuple(item["embedding"]))
+                for text, item in zip(texts, embeddings, strict=True)
+            ]
+        except (KeyError, TypeError, ValueError) as error:
+            raise EmbeddingProviderError(
+                "Embedding provider returned an invalid response."
+            ) from error
+        if any(len(item.vector) != self.dimensions for item in result):
+            raise EmbeddingProviderError(
+                "Embedding provider returned unexpected vector dimensions."
+            )
+        return result
+
+
+def get_embedding_provider(
+    *,
+    dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS,
+) -> EmbeddingProviderProtocol:
+    from studygraph.config import (
+        get_embedding_api_key,
+        get_embedding_api_url,
+        get_embedding_model,
+        get_embedding_provider_name,
+    )
+
+    provider_name = get_embedding_provider_name()
+    if provider_name == "deterministic":
+        return DeterministicHashEmbeddingProvider(dimensions=dimensions)
+    return OpenAICompatibleEmbeddingProvider(
+        api_key=get_embedding_api_key(),
+        api_url=get_embedding_api_url(),
+        model=get_embedding_model(),
+        dimensions=dimensions,
+    )
 
 
 def cosine_similarity(

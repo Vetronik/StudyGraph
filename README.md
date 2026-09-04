@@ -294,19 +294,23 @@ python -m pytest -m postgresql
 The integration tests require `TEST_DATABASE_URL` and a dedicated test
 database. They must never run against personal or production data.
 
-## Recommended next milestones 🗺️
+## Completed milestones and next steps 🗺️
 
-1. Add a real continuously running worker and job observability so processing
-   survives API restarts reliably.
-2. Add OCR support for scanned PDFs and tests for representative documents.
-3. Combine full-text and semantic retrieval into hybrid search and evaluate it
-   with a small fixed search dataset.
-4. Replace the deterministic embedding provider with a configurable production
-   provider.
-5. Add an LLM provider interface for cited RAG answers, with token/cost and
+The worker, recovery, OCR fallback, hybrid search, status UI, authentication,
+local summaries, quizzes, persistent learning progress, and the laptop Docker
+stack are implemented. Embeddings are configurable through
+`STUDYGRAPH_EMBEDDING_PROVIDER`: `deterministic` is the zero-configuration
+local default, while `openai-compatible` uses the configured API URL, model,
+and key. The database schema currently uses 64-dimensional vectors.
+
+The next larger milestones are:
+
+1. Add an LLM provider interface for cited RAG answers, with token/cost and
    privacy controls.
-6. Build quizzes, flashcards, collections, and learning progress tracking.
-7. Harden authentication and deployment settings before exposing the service
+2. Improve quizzes with multiple question types and answer validation.
+3. Add flashcards and collections on top of the existing document and progress
+   model.
+4. Harden authentication and deployment settings before exposing the service
    beyond the laptop.
 
 ## Contributing 🤝
