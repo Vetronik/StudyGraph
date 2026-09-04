@@ -377,6 +377,33 @@ h2 {
   border-bottom: 1px solid var(--panel-border);
 }
 
+.learning-tools {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.tool-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.learning-output {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-text,
+.quiz-item {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
 .detail-title {
   overflow-wrap: anywhere;
   font-size: 18px;

@@ -18,18 +18,24 @@ const elements = {
   documentDetail: document.querySelector("#document-detail"),
   documentList: document.querySelector("#document-list"),
   healthStatus: document.querySelector("#health-status"),
+  learningOutput: document.querySelector("#learning-output"),
+  learningTools: document.querySelector("#learning-tools"),
+  masteryButton: document.querySelector("#mastery-button"),
   notice: document.querySelector("#notice"),
   ownerInput: document.querySelector("#owner-input"),
   pdfInput: document.querySelector("#pdf-input"),
   refreshButton: document.querySelector("#refresh-button"),
+  reviewButton: document.querySelector("#review-button"),
   searchCount: document.querySelector("#search-count"),
   searchForm: document.querySelector("#search-form"),
   searchInput: document.querySelector("#search-input"),
   searchResults: document.querySelector("#search-results"),
+  summaryButton: document.querySelector("#summary-button"),
   selectedFileName: document.querySelector("#selected-file-name"),
   uploadButton: document.querySelector("#upload-button"),
   uploadForm: document.querySelector("#upload-form"),
   uploadState: document.querySelector("#upload-state"),
+  quizButton: document.querySelector("#quiz-button"),
 };
 
 class ApiError extends Error {
@@ -271,6 +277,8 @@ function clearSelection() {
   elements.documentDetail.className = "document-detail empty-state";
   elements.documentDetail.textContent = "No document selected";
   elements.chunkList.replaceChildren();
+  elements.learningTools.hidden = true;
+  elements.learningOutput.replaceChildren();
   renderDocuments();
 }
 
@@ -279,13 +287,72 @@ async function selectDocument(documentId) {
   elements.deleteButton.disabled = false;
   renderDocuments();
 
-  const [documentItem, chunkList] = await Promise.all([
+  const [documentItem, chunkList, progress] = await Promise.all([
     requestJson(`/documents/${documentId}`),
     requestJson(`/documents/${documentId}/chunks`),
+    requestJson(`/documents/${documentId}/progress`),
   ]);
 
   renderDocumentDetail(documentItem);
   renderChunks(chunkList.items);
+  renderProgress(progress);
+}
+
+function renderProgress(progress) {
+  elements.learningTools.hidden = false;
+  elements.masteryButton.textContent = progress.mastered
+    ? "Mark not mastered"
+    : "Mark mastered";
+  elements.learningOutput.replaceChildren(
+    createTextElement(
+      "p",
+      "item-meta",
+      `${formatNumber(progress.review_count)} reviews${progress.last_reviewed_at ? ` | Last: ${formatDate(progress.last_reviewed_at)}` : ""}`,
+    ),
+  );
+}
+
+async function updateProgress(url, options) {
+  try {
+    const progress = await requestJson(url, options);
+    renderProgress(progress);
+    showNotice("Learning progress updated.", "success");
+  } catch (error) {
+    showNotice(getErrorMessage(error), "error");
+  }
+}
+
+async function showSummary() {
+  if (state.selectedDocumentId === null) return;
+  try {
+    const summary = await requestJson(`/documents/${state.selectedDocumentId}/summary`);
+    elements.learningOutput.replaceChildren(
+      createTextElement("p", "learning-text", summary.summary),
+      createTextElement("p", "item-meta", `${summary.sources.length} source(s)`),
+    );
+  } catch (error) {
+    showNotice(getErrorMessage(error), "error");
+  }
+}
+
+async function showQuiz() {
+  if (state.selectedDocumentId === null) return;
+  try {
+    const quiz = await requestJson(`/documents/${state.selectedDocumentId}/quiz?count=5`);
+    elements.learningOutput.replaceChildren(
+      ...quiz.questions.map((question, index) => {
+        const item = document.createElement("article");
+        item.className = "quiz-item";
+        item.append(
+          createTextElement("strong", "", `${index + 1}. ${question.question}`),
+          createTextElement("div", "item-meta", `Answer: ${question.answer} | Page ${question.page_number}`),
+        );
+        return item;
+      }),
+    );
+  } catch (error) {
+    showNotice(getErrorMessage(error), "error");
+  }
 }
 
 function renderDocumentDetail(documentItem) {
@@ -474,6 +541,22 @@ elements.refreshButton.addEventListener("click", async () => {
   });
 });
 elements.deleteButton.addEventListener("click", handleDelete);
+elements.reviewButton.addEventListener("click", () => {
+  if (state.selectedDocumentId !== null) {
+    updateProgress(`/documents/${state.selectedDocumentId}/progress/review`, { method: "POST" });
+  }
+});
+elements.masteryButton.addEventListener("click", async () => {
+  if (state.selectedDocumentId === null) return;
+  const progress = await requestJson(`/documents/${state.selectedDocumentId}/progress`);
+  updateProgress(`/documents/${state.selectedDocumentId}/progress`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mastered: !progress.mastered }),
+  });
+});
+elements.summaryButton.addEventListener("click", showSummary);
+elements.quizButton.addEventListener("click", showQuiz);
 elements.pdfInput.addEventListener("change", () => {
   elements.selectedFileName.textContent =
     elements.pdfInput.files[0]?.name ?? "Select PDF";
