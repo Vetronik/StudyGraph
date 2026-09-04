@@ -192,6 +192,10 @@ Useful endpoints:
 | `GET` | `/documents/{id}/progress` | Read learning progress |
 | `POST` | `/documents/{id}/progress/review` | Count a review session |
 | `PUT` | `/documents/{id}/progress` | Mark a document mastered or unmastered |
+| `POST` | `/collections` | Create a document collection |
+| `GET` | `/collections` | List collections for the current owner |
+| `POST` | `/collections/{id}/documents` | Add a document to a collection |
+| `DELETE` | `/collections/{id}/documents/{document_id}` | Remove a document from a collection |
 | `POST` | `/documents/{id}/retry` | Queue failed document processing again |
 | `POST` | `/rag/context` | Build source-grounded retrieval context |
 | `POST` | `/ask` | Return an offline source-cited answer |

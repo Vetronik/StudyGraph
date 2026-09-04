@@ -3,10 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    Column,
     DateTime,
     ForeignKey,
     Integer,
     String,
+    Table,
     Text,
     UniqueConstraint,
     func,
@@ -78,6 +80,50 @@ class Document(Base):
         back_populates="document",
         cascade="all, delete-orphan",
         order_by="DocumentChunk.position",
+    )
+    collections: Mapped[list[Collection]] = relationship(
+        secondary=lambda: collection_documents,
+        back_populates="documents",
+    )
+
+
+collection_documents = Table(
+    "collection_documents",
+    Base.metadata,
+    Column(
+        "collection_id",
+        ForeignKey("collections.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "document_id",
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+
+class Collection(Base):
+    __tablename__ = "collections"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_id",
+            "name",
+            name="uq_collections_owner_name",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    documents: Mapped[list[Document]] = relationship(
+        secondary=collection_documents,
+        back_populates="collections",
     )
 
 

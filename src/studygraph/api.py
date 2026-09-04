@@ -40,6 +40,16 @@ from studygraph.auth_service import (
     InvalidCredentialsError,
     UserAlreadyExistsError,
 )
+from studygraph.collection_repository import (
+    CollectionNameConflictError,
+    CollectionRepository,
+    CollectionRepositoryError,
+)
+from studygraph.collection_service import (
+    CollectionNotFoundError,
+    CollectionService,
+    CollectionValidationError,
+)
 from studygraph.config import (
     ConfigurationError,
     get_auth_secret,
@@ -238,6 +248,26 @@ class FlashcardsResponse(BaseModel):
     document_id: int
     filename: str
     cards: list[FlashcardResponse]
+
+
+class CollectionCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class CollectionDocumentRequest(BaseModel):
+    document_id: int = Field(gt=0)
+
+
+class CollectionDocumentResponse(BaseModel):
+    id: int
+    filename: str
+
+
+class CollectionResponse(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+    documents: list[CollectionDocumentResponse]
 
 
 class QuizValidationRequest(BaseModel):
@@ -439,6 +469,16 @@ def get_document_service(
         DocumentRepository(session, embedding_provider=embedding_provider),
         owner_id=current_user.owner_id,
         embedding_provider=embedding_provider,
+    )
+
+
+def get_collection_service(
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    session: Annotated[Session, Depends(get_session)],
+) -> CollectionService:
+    return CollectionService(
+        CollectionRepository(session),
+        owner_id=current_user.owner_id,
     )
 
 
@@ -1148,6 +1188,102 @@ def validate_document_quiz_answer(
         question_index=request.question_index,
         correct=correct,
     )
+
+
+def _build_collection_response(collection) -> CollectionResponse:
+    return CollectionResponse(
+        id=collection.id,
+        name=collection.name,
+        created_at=collection.created_at,
+        documents=[
+            CollectionDocumentResponse(id=document.id, filename=document.filename)
+            for document in collection.documents
+        ],
+    )
+
+
+@app.post(
+    "/collections",
+    response_model=CollectionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_collection(
+    request: CollectionCreateRequest,
+    collection_service: Annotated[CollectionService, Depends(get_collection_service)],
+) -> CollectionResponse:
+    try:
+        return _build_collection_response(collection_service.create(request.name))
+    except CollectionValidationError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except CollectionNameConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except CollectionRepositoryError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Could not create collection.",
+        ) from error
+
+
+@app.get(
+    "/collections",
+    response_model=list[CollectionResponse],
+    status_code=status.HTTP_200_OK,
+)
+def list_collections(
+    collection_service: Annotated[CollectionService, Depends(get_collection_service)],
+) -> list[CollectionResponse]:
+    try:
+        collections = collection_service.list().collections
+        return [_build_collection_response(item) for item in collections]
+    except CollectionRepositoryError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Could not list collections.",
+        ) from error
+
+
+@app.post(
+    "/collections/{collection_id}/documents",
+    response_model=CollectionResponse,
+    status_code=status.HTTP_200_OK,
+)
+def add_document_to_collection(
+    collection_id: int,
+    request: CollectionDocumentRequest,
+    collection_service: Annotated[CollectionService, Depends(get_collection_service)],
+) -> CollectionResponse:
+    try:
+        collection = collection_service.add_document(collection_id, request.document_id)
+    except CollectionNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except CollectionRepositoryError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Could not add document to collection.",
+        ) from error
+    return _build_collection_response(collection)
+
+
+@app.delete(
+    "/collections/{collection_id}/documents/{document_id}",
+    response_model=CollectionResponse,
+    status_code=status.HTTP_200_OK,
+)
+def remove_document_from_collection(
+    collection_id: int,
+    document_id: int,
+    collection_service: Annotated[CollectionService, Depends(get_collection_service)],
+) -> CollectionResponse:
+    try:
+        collection = collection_service.remove_document(collection_id, document_id)
+    except CollectionNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except CollectionRepositoryError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Could not remove document from collection.",
+        ) from error
+    return _build_collection_response(collection)
 
 
 @app.get(
