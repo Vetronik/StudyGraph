@@ -31,5 +31,5 @@ def get_session_factory() -> sessionmaker[Session]:
 
 
 def get_session() -> Generator[Session]:
-    with get_session_factory() as session:
+    with get_session_factory()() as session:
         yield session
