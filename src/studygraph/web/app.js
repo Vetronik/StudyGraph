@@ -102,6 +102,10 @@ function formatDate(value) {
 }
 
 function getStatusClass(status) {
+  if (status === "processing") {
+    return "status-pending";
+  }
+
   if (["failed", "pending", "processed"].includes(status)) {
     return `status-${status}`;
   }
@@ -433,3 +437,7 @@ elements.ownerInput.addEventListener("change", async () => {
 });
 
 refreshWorkspace().catch((error) => showNotice(getErrorMessage(error), "error"));
+
+setInterval(() => {
+  refreshDocuments().catch(() => undefined);
+}, 3000);
