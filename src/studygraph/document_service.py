@@ -452,3 +452,43 @@ class DocumentService:
             offset=offset,
             query=normalized_query,
         )
+
+    def hybrid_search_chunks(
+        self,
+        *,
+        query: str,
+        limit: int,
+        offset: int,
+    ) -> DocumentSearchResultList:
+        candidate_limit = min(100, limit + offset + 20)
+        full_text_results = self.search_chunks(
+            query=query,
+            limit=candidate_limit,
+            offset=0,
+        )
+        semantic_results = self.semantic_search_chunks(
+            query=query,
+            limit=candidate_limit,
+            offset=0,
+        )
+
+        scores: dict[int, float] = {}
+        chunks: dict[int, DocumentChunk] = {}
+        for rank, chunk in enumerate(full_text_results.chunks, start=1):
+            scores[chunk.id] = scores.get(chunk.id, 0.0) + 1 / (60 + rank)
+            chunks[chunk.id] = chunk
+        for rank, chunk in enumerate(semantic_results.chunks, start=1):
+            scores[chunk.id] = scores.get(chunk.id, 0.0) + 1 / (60 + rank)
+            chunks[chunk.id] = chunk
+
+        ranked_chunks = sorted(
+            chunks.values(),
+            key=lambda chunk: (-scores[chunk.id], chunk.id),
+        )
+        return DocumentSearchResultList(
+            chunks=ranked_chunks[offset : offset + limit],
+            total=len(ranked_chunks),
+            limit=limit,
+            offset=offset,
+            query=full_text_results.query,
+        )

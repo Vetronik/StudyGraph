@@ -772,6 +772,32 @@ def test_semantic_search_returns_embedded_chunks(
     assert response.json()["items"][0]["document_filename"] == "calculus.pdf"
 
 
+def test_hybrid_search_combines_full_text_and_semantic_results(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "calculus.pdf"
+    write_pdf_with_text(pdf_path, "Chain rule and derivatives")
+
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "calculus.pdf",
+                pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+
+    response = client.get("/hybrid-search?query=derivative mathematics")
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["document_filename"] == "calculus.pdf"
+
+
 def test_search_document_chunks_supports_pagination(
     client: TestClient,
     tmp_path: Path,

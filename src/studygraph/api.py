@@ -382,6 +382,46 @@ def _normalize_username(username: str) -> str:
         ) from error
 
 
+@app.get(
+    "/hybrid-search",
+    response_model=SearchResponse,
+    status_code=status.HTTP_200_OK,
+)
+def hybrid_search_document_chunks(
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+    query: Annotated[str, Query(min_length=1, max_length=200)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> SearchResponse:
+    try:
+        search_results = document_service.hybrid_search_chunks(
+            query=query,
+            limit=limit,
+            offset=offset,
+        )
+    except DocumentSearchQueryError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not run hybrid document search.",
+        ) from error
+
+    return SearchResponse(
+        items=[
+            _build_search_result_response(chunk, query=search_results.query)
+            for chunk in search_results.chunks
+        ],
+        total=search_results.total,
+        limit=search_results.limit,
+        offset=search_results.offset,
+        query=search_results.query,
+    )
+
+
 @app.post(
     "/auth/register",
     response_model=UserResponse,
