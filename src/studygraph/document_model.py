@@ -116,3 +116,42 @@ class DocumentChunk(Base):
         server_default=func.now(),
     )
     document: Mapped[Document] = relationship(back_populates="chunks")
+
+
+class LearningProgress(Base):
+    __tablename__ = "learning_progress"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_id",
+            "document_id",
+            name="uq_learning_progress_owner_document",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    review_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    mastered: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )

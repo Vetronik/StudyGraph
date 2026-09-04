@@ -1,8 +1,10 @@
+from datetime import UTC, datetime
+
 from sqlalchemy import cast, func, or_, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, contains_eager
 
-from studygraph.document_model import Document, DocumentChunk
+from studygraph.document_model import Document, DocumentChunk, LearningProgress
 from studygraph.embedding_service import DeterministicHashEmbeddingProvider, Vector
 
 
@@ -52,6 +54,78 @@ class DocumentRepository:
         except SQLAlchemyError as error:
             self._session.rollback()
             raise DocumentRepositoryError("Could not delete document.") from error
+
+    def get_learning_progress(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+    ) -> LearningProgress | None:
+        statement = select(LearningProgress).where(
+            LearningProgress.document_id == document_id,
+            LearningProgress.owner_id == owner_id,
+        )
+        try:
+            return self._session.scalar(statement)
+        except SQLAlchemyError as error:
+            raise DocumentRepositoryError(
+                "Could not load learning progress."
+            ) from error
+
+    def mark_learning_reviewed(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+    ) -> LearningProgress:
+        statement = select(LearningProgress).where(
+            LearningProgress.document_id == document_id,
+            LearningProgress.owner_id == owner_id,
+        ).with_for_update()
+        try:
+            progress = self._session.scalar(statement)
+            if progress is None:
+                progress = LearningProgress(
+                    owner_id=owner_id,
+                    document_id=document_id,
+                    review_count=0,
+                )
+                self._session.add(progress)
+            progress.review_count = (progress.review_count or 0) + 1
+            progress.last_reviewed_at = datetime.now(UTC)
+            self._session.commit()
+            self._session.refresh(progress)
+            return progress
+        except SQLAlchemyError as error:
+            self._session.rollback()
+            raise DocumentRepositoryError(
+                "Could not save learning progress."
+            ) from error
+
+    def set_learning_mastered(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+        mastered: bool,
+    ) -> LearningProgress:
+        progress = self.get_learning_progress(document_id, owner_id=owner_id)
+        try:
+            if progress is None:
+                progress = LearningProgress(
+                    owner_id=owner_id,
+                    document_id=document_id,
+                )
+                self._session.add(progress)
+            progress.mastered = mastered
+            self._session.commit()
+            self._session.refresh(progress)
+            return progress
+        except SQLAlchemyError as error:
+            self._session.rollback()
+            raise DocumentRepositoryError(
+                "Could not update learning progress."
+            ) from error
 
     def get_by_id(self, document_id: int, *, owner_id: str) -> Document | None:
         statement = select(Document).where(

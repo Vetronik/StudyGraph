@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from studygraph.document_model import Document, DocumentChunk
+from studygraph.document_model import Document, DocumentChunk, LearningProgress
 from studygraph.document_repository import (
     DocumentDuplicateError,
     DocumentRepositoryError,
@@ -79,6 +79,28 @@ class DocumentRepositoryProtocol(Protocol):
     def update(self, document: Document) -> Document: ...
 
     def delete(self, document: Document) -> None: ...
+
+    def get_learning_progress(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+    ) -> LearningProgress | None: ...
+
+    def mark_learning_reviewed(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+    ) -> LearningProgress: ...
+
+    def set_learning_mastered(
+        self,
+        document_id: int,
+        *,
+        owner_id: str,
+        mastered: bool,
+    ) -> LearningProgress: ...
 
     def claim_for_processing(
         self,
@@ -304,6 +326,50 @@ class DocumentService:
             raise DocumentStorageError(
                 "Could not retry document processing."
             ) from error
+
+    def get_learning_progress(self, document_id: int) -> LearningProgress:
+        self.get_document(document_id)
+        try:
+            progress = self._repository.get_learning_progress(
+                document_id,
+                owner_id=self._owner_id,
+            )
+        except DocumentRepositoryError as error:
+            raise DocumentReadError("Could not load learning progress.") from error
+        if progress is None:
+            return LearningProgress(
+                owner_id=self._owner_id,
+                document_id=document_id,
+                review_count=0,
+                mastered=False,
+            )
+        return progress
+
+    def mark_learning_reviewed(self, document_id: int) -> LearningProgress:
+        self.get_document(document_id)
+        try:
+            return self._repository.mark_learning_reviewed(
+                document_id,
+                owner_id=self._owner_id,
+            )
+        except DocumentRepositoryError as error:
+            raise DocumentStorageError("Could not save learning progress.") from error
+
+    def set_learning_mastered(
+        self,
+        document_id: int,
+        *,
+        mastered: bool,
+    ) -> LearningProgress:
+        self.get_document(document_id)
+        try:
+            return self._repository.set_learning_mastered(
+                document_id,
+                owner_id=self._owner_id,
+                mastered=mastered,
+            )
+        except DocumentRepositoryError as error:
+            raise DocumentStorageError("Could not update learning progress.") from error
 
     def get_document(self, document_id: int) -> Document:
         try:

@@ -50,7 +50,7 @@ from studygraph.config import (
     is_database_configured,
 )
 from studygraph.database import get_session
-from studygraph.document_model import Document, DocumentChunk
+from studygraph.document_model import Document, DocumentChunk, LearningProgress
 from studygraph.document_processing import DocumentProcessingStateError
 from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import (
@@ -205,6 +205,17 @@ class QuizResponse(BaseModel):
     document_id: int
     filename: str
     questions: list[QuizQuestionResponse]
+
+
+class ProgressResponse(BaseModel):
+    document_id: int
+    review_count: int
+    mastered: bool
+    last_reviewed_at: datetime | None
+
+
+class ProgressUpdateRequest(BaseModel):
+    mastered: bool | None = None
 
 
 class AuthRequest(BaseModel):
@@ -1000,6 +1011,99 @@ def generate_document_quiz(
             for question in quiz.questions
         ],
     )
+
+
+def _build_progress_response(progress: LearningProgress) -> ProgressResponse:
+    return ProgressResponse(
+        document_id=progress.document_id,
+        review_count=progress.review_count,
+        mastered=progress.mastered,
+        last_reviewed_at=progress.last_reviewed_at,
+    )
+
+
+@app.get(
+    "/documents/{document_id}/progress",
+    response_model=ProgressResponse,
+    status_code=status.HTTP_200_OK,
+)
+def get_document_progress(
+    document_id: int,
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+) -> ProgressResponse:
+    try:
+        return _build_progress_response(
+            document_service.get_learning_progress(document_id)
+        )
+    except DocumentNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not load learning progress.",
+        ) from error
+
+
+@app.post(
+    "/documents/{document_id}/progress/review",
+    response_model=ProgressResponse,
+    status_code=status.HTTP_200_OK,
+)
+def review_document(
+    document_id: int,
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+) -> ProgressResponse:
+    try:
+        return _build_progress_response(
+            document_service.mark_learning_reviewed(document_id)
+        )
+    except DocumentNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentStorageError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not save learning progress.",
+        ) from error
+
+
+@app.put(
+    "/documents/{document_id}/progress",
+    response_model=ProgressResponse,
+    status_code=status.HTTP_200_OK,
+)
+def update_document_progress(
+    document_id: int,
+    request: ProgressUpdateRequest,
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+) -> ProgressResponse:
+    if request.mastered is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="mastered must be provided.",
+        )
+    try:
+        return _build_progress_response(
+            document_service.set_learning_mastered(
+                document_id,
+                mastered=request.mastered,
+            )
+        )
+    except DocumentNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentStorageError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not update learning progress.",
+        ) from error
 
 
 @app.post(
