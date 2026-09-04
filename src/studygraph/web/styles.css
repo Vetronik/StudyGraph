@@ -426,6 +426,17 @@ h2 {
   font-weight: 700;
 }
 
+.flashcard {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  background: #f8fafc;
+  color: var(--text);
+  text-align: left;
+}
+
 .quiz-wrong {
   color: var(--red);
   font-size: 13px;

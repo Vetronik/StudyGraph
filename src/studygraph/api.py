@@ -64,7 +64,11 @@ from studygraph.document_service import (
 )
 from studygraph.document_worker import process_document_job
 from studygraph.embedding_service import get_embedding_provider
-from studygraph.learning_service import ExtractiveSummaryService, LocalQuizService
+from studygraph.learning_service import (
+    ExtractiveSummaryService,
+    LocalFlashcardService,
+    LocalQuizService,
+)
 from studygraph.logging_config import configure_logging
 from studygraph.rag_service import RAGService
 from studygraph.retrieval_service import RetrievalService
@@ -220,6 +224,20 @@ class QuizResponse(BaseModel):
     document_id: int
     filename: str
     questions: list[QuizQuestionResponse]
+
+
+class FlashcardResponse(BaseModel):
+    front: str
+    back: str
+    chunk_id: int
+    chunk_position: int
+    page_number: int
+
+
+class FlashcardsResponse(BaseModel):
+    document_id: int
+    filename: str
+    cards: list[FlashcardResponse]
 
 
 class QuizValidationRequest(BaseModel):
@@ -446,6 +464,12 @@ def get_quiz_service(
     document_service: Annotated[DocumentService, Depends(get_document_service)],
 ) -> LocalQuizService:
     return LocalQuizService(document_service)
+
+
+def get_flashcard_service(
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+) -> LocalFlashcardService:
+    return LocalFlashcardService(document_service)
 
 
 def get_document_processor() -> DocumentProcessor:
@@ -1123,6 +1147,51 @@ def validate_document_quiz_answer(
     return QuizValidationResponse(
         question_index=request.question_index,
         correct=correct,
+    )
+
+
+@app.get(
+    "/documents/{document_id}/flashcards",
+    response_model=FlashcardsResponse,
+    status_code=status.HTTP_200_OK,
+)
+def generate_document_flashcards(
+    document_id: int,
+    flashcard_service: Annotated[
+        LocalFlashcardService,
+        Depends(get_flashcard_service),
+    ],
+    count: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> FlashcardsResponse:
+    try:
+        flashcards = flashcard_service.generate(
+            document_id=document_id,
+            count=count,
+        )
+    except DocumentNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not create document flashcards.",
+        ) from error
+
+    return FlashcardsResponse(
+        document_id=flashcards.document_id,
+        filename=flashcards.filename,
+        cards=[
+            FlashcardResponse(
+                front=card.front,
+                back=card.back,
+                chunk_id=card.chunk_id,
+                chunk_position=card.chunk_position,
+                page_number=card.page_number,
+            )
+            for card in flashcards.cards
+        ],
     )
 
 

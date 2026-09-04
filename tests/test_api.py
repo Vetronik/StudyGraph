@@ -964,6 +964,32 @@ def test_document_quiz_supports_multiple_choice_and_validation(
     assert validation.json()["correct"] is True
 
 
+def test_document_flashcards_include_source_metadata(
+    client: TestClient,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    pdf_path = tmp_path / "lecture.pdf"
+    write_pdf_with_text(
+        pdf_path,
+        "StudyGraph stores university documents for learning. "
+        "Retrieval connects concepts.",
+    )
+    response = client.post(
+        "/documents",
+        files={"file": ("lecture.pdf", pdf_path.read_bytes(), "application/pdf")},
+    )
+    document_id = response.json()["id"]
+
+    flashcards = client.get(f"/documents/{document_id}/flashcards?count=1")
+
+    assert flashcards.status_code == 200
+    card = flashcards.json()["cards"][0]
+    assert card["front"].startswith("Explain this concept:")
+    assert card["back"]
+    assert card["page_number"] == 1
+
+
 def test_document_progress_tracks_reviews_and_mastery(
     client: TestClient,
     tmp_path: Path,

@@ -43,6 +43,22 @@ class DocumentQuiz:
     questions: list[QuizQuestion]
 
 
+@dataclass(frozen=True)
+class Flashcard:
+    front: str
+    back: str
+    chunk_id: int
+    chunk_position: int
+    page_number: int
+
+
+@dataclass(frozen=True)
+class DocumentFlashcards:
+    document_id: int
+    filename: str
+    cards: list[Flashcard]
+
+
 class DocumentContentProtocol(Protocol):
     def get_document(self, document_id: int) -> Document: ...
 
@@ -199,6 +215,35 @@ class LocalQuizService:
         ]
         options = [answer, *distractors[-2:]]
         return sorted(options, key=str.casefold)
+
+
+class LocalFlashcardService:
+    """Create simple source-linked flashcards without external services."""
+
+    def __init__(self, document_service: DocumentContentProtocol) -> None:
+        self._document_service = document_service
+
+    def generate(self, *, document_id: int, count: int) -> DocumentFlashcards:
+        document = self._document_service.get_document(document_id)
+        chunk_list = self._document_service.list_document_chunks(document_id)
+        cards: list[Flashcard] = []
+        for chunk in chunk_list.chunks:
+            for sentence in SENTENCE_PATTERN.split(chunk.text):
+                text = " ".join(sentence.split())
+                if len(text) < 20:
+                    continue
+                cards.append(
+                    Flashcard(
+                        front="Explain this concept: " + text,
+                        back=text,
+                        chunk_id=chunk.id,
+                        chunk_position=chunk.position,
+                        page_number=chunk.page_number,
+                    )
+                )
+                if len(cards) >= count:
+                    return DocumentFlashcards(document.id, document.filename, cards)
+        return DocumentFlashcards(document.id, document.filename, cards)
 
 
 def _normalize_answer(value: str) -> str:

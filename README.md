@@ -188,6 +188,7 @@ Useful endpoints:
 | `GET` | `/hybrid-search?query=...` | Combined full-text and semantic search |
 | `GET` | `/documents/{id}/summary` | Create a source-referenced local summary |
 | `GET` | `/documents/{id}/quiz` | Generate local source-referenced cloze questions |
+| `GET` | `/documents/{id}/flashcards` | Generate source-referenced flashcards |
 | `GET` | `/documents/{id}/progress` | Read learning progress |
 | `POST` | `/documents/{id}/progress/review` | Count a review session |
 | `PUT` | `/documents/{id}/progress` | Mark a document mastered or unmastered |

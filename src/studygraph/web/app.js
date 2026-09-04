@@ -17,6 +17,7 @@ const elements = {
   documentCount: document.querySelector("#document-count"),
   documentDetail: document.querySelector("#document-detail"),
   documentList: document.querySelector("#document-list"),
+  flashcardsButton: document.querySelector("#flashcards-button"),
   healthStatus: document.querySelector("#health-status"),
   learningOutput: document.querySelector("#learning-output"),
   learningTools: document.querySelector("#learning-tools"),
@@ -396,6 +397,37 @@ async function showQuiz() {
   }
 }
 
+async function showFlashcards() {
+  if (state.selectedDocumentId === null) return;
+  try {
+    const flashcards = await requestJson(
+      `/documents/${state.selectedDocumentId}/flashcards?count=10`,
+    );
+    elements.learningOutput.replaceChildren(
+      ...flashcards.cards.map((card, index) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "flashcard";
+        let showingBack = false;
+        const render = () => {
+          item.replaceChildren(
+            createTextElement("strong", "", `${index + 1}. ${showingBack ? card.back : card.front}`),
+            createTextElement("div", "item-meta", showingBack ? "Click to hide answer" : "Click to reveal answer"),
+          );
+        };
+        item.addEventListener("click", () => {
+          showingBack = !showingBack;
+          render();
+        });
+        render();
+        return item;
+      }),
+    );
+  } catch (error) {
+    showNotice(getErrorMessage(error), "error");
+  }
+}
+
 function renderDocumentDetail(documentItem) {
   elements.documentDetail.className = "document-detail";
   elements.documentDetail.replaceChildren();
@@ -598,6 +630,7 @@ elements.masteryButton.addEventListener("click", async () => {
 });
 elements.summaryButton.addEventListener("click", showSummary);
 elements.quizButton.addEventListener("click", showQuiz);
+elements.flashcardsButton.addEventListener("click", showFlashcards);
 elements.pdfInput.addEventListener("change", () => {
   elements.selectedFileName.textContent =
     elements.pdfInput.files[0]?.name ?? "Select PDF";
