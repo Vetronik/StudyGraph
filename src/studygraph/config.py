@@ -10,6 +10,8 @@ MAX_DOCUMENT_PAGES_ENV_VAR = "STUDYGRAPH_MAX_DOCUMENT_PAGES"
 MAX_UPLOAD_BYTES_ENV_VAR = "STUDYGRAPH_MAX_UPLOAD_BYTES"
 MAX_PROCESSING_ATTEMPTS_ENV_VAR = "STUDYGRAPH_MAX_PROCESSING_ATTEMPTS"
 REQUIRE_USER_HEADER_ENV_VAR = "STUDYGRAPH_REQUIRE_USER_HEADER"
+OCR_ENABLED_ENV_VAR = "STUDYGRAPH_OCR_ENABLED"
+OCR_LANGUAGE_ENV_VAR = "STUDYGRAPH_OCR_LANGUAGE"
 
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_DOCUMENT_STORAGE_DIR = "data/documents"
@@ -18,6 +20,7 @@ DEFAULT_MAX_DOCUMENT_CHARACTERS = 1_000_000
 DEFAULT_MAX_DOCUMENT_PAGES = 500
 DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 DEFAULT_MAX_PROCESSING_ATTEMPTS = 3
+DEFAULT_OCR_LANGUAGE = "eng"
 VALID_LOG_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
 
 
@@ -153,6 +156,27 @@ def get_require_user_header() -> bool:
     raise ConfigurationError(
         f"{REQUIRE_USER_HEADER_ENV_VAR} must be a boolean value."
     )
+
+
+def get_ocr_enabled() -> bool:
+    raw_value = os.environ.get(OCR_ENABLED_ENV_VAR, "false").strip().lower()
+    if raw_value in {"1", "true", "yes", "on"}:
+        return True
+    if raw_value in {"0", "false", "no", "off"}:
+        return False
+    raise ConfigurationError(f"{OCR_ENABLED_ENV_VAR} must be a boolean value.")
+
+
+def get_ocr_language() -> str:
+    value = os.environ.get(OCR_LANGUAGE_ENV_VAR, DEFAULT_OCR_LANGUAGE).strip()
+    allowed_characters = "abcdefghijklmnopqrstuvwxyz+_-"
+    if not value or any(
+        character not in allowed_characters for character in value.lower()
+    ):
+        raise ConfigurationError(
+            f"{OCR_LANGUAGE_ENV_VAR} must contain valid Tesseract language codes."
+        )
+    return value
 
 
 def get_log_level() -> str:
