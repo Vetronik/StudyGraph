@@ -837,6 +837,43 @@ def get_document(
     return _build_document_response(document)
 
 
+@app.post(
+    "/documents/{document_id}/retry",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def retry_document(
+    document_id: int,
+    background_tasks: BackgroundTasks,
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+    document_processor: Annotated[
+        DocumentProcessor,
+        Depends(get_document_processor),
+    ],
+) -> DocumentResponse:
+    try:
+        document = document_service.retry_document(document_id)
+    except DocumentNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentStorageError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not retry document processing.",
+        ) from error
+
+    if document.source_path:
+        background_tasks.add_task(
+            document_processor,
+            document.id,
+            Path(document.source_path),
+        )
+
+    return _build_document_response(document)
+
+
 @app.delete(
     "/documents/{document_id}",
     status_code=status.HTTP_204_NO_CONTENT,

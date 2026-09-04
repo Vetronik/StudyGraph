@@ -291,6 +291,20 @@ class DocumentService:
                 "Could not save document failure state."
             ) from error
 
+    def retry_document(self, document_id: int) -> Document:
+        document = self.get_document(document_id)
+        document.status = DOCUMENT_STATUS_PENDING
+        document.processing_error = None
+        document.processing_attempts = 0
+        document.chunks = []
+
+        try:
+            return self._repository.update(document)
+        except DocumentRepositoryError as error:
+            raise DocumentStorageError(
+                "Could not retry document processing."
+            ) from error
+
     def get_document(self, document_id: int) -> Document:
         try:
             document = self._repository.get_by_id(
