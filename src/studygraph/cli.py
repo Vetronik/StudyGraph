@@ -43,7 +43,7 @@ def main() -> int:
 
 
 def process_pending_documents() -> int:
-    with get_session_factory() as session:
+    with get_session_factory()() as session:
         repository = DocumentRepository(session)
         pending_documents = [
             (document.id, Path(document.source_path))

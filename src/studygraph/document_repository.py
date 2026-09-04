@@ -1,4 +1,4 @@
-from sqlalchemy import cast, func, or_, select
+from sqlalchemy import cast, func, or_, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, contains_eager
 
@@ -77,6 +77,22 @@ class DocumentRepository:
         except SQLAlchemyError as error:
             raise DocumentRepositoryError(
                 "Could not load pending documents."
+            ) from error
+
+    def requeue_processing_documents(self) -> int:
+        """Requeue jobs left in ``processing`` after a worker interruption."""
+        try:
+            result = self._session.execute(
+                update(Document)
+                .where(Document.status == "processing")
+                .values(status="pending", processing_error=None)
+            )
+            self._session.commit()
+            return result.rowcount
+        except SQLAlchemyError as error:
+            self._session.rollback()
+            raise DocumentRepositoryError(
+                "Could not requeue interrupted documents."
             ) from error
 
     def get_for_processing(self, document_id: int) -> Document | None:

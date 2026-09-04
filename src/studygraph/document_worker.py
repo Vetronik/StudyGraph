@@ -1,5 +1,7 @@
 import logging
+import signal
 from pathlib import Path
+from threading import Event
 
 from studygraph.config import (
     get_max_document_characters,
@@ -18,6 +20,8 @@ from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import DocumentService
 
 logger = logging.getLogger(__name__)
+DEFAULT_POLL_INTERVAL_SECONDS = 2
+DEFAULT_BATCH_SIZE = 10
 
 
 def has_reached_retry_limit(document: Document, *, max_attempts: int) -> bool:
@@ -25,7 +29,7 @@ def has_reached_retry_limit(document: Document, *, max_attempts: int) -> bool:
 
 
 def process_document_job(document_id: int, pdf_path: Path) -> None:
-    with get_session_factory() as session:
+    with get_session_factory()() as session:
         repository = DocumentRepository(session)
         document = repository.get_for_processing(document_id)
 
@@ -64,3 +68,70 @@ def process_document_job(document_id: int, pdf_path: Path) -> None:
                 "document_processing_state_error_in_worker document_id=%s",
                 document_id,
             )
+
+
+def run_worker(
+    *,
+    stop_event: Event | None = None,
+    poll_interval_seconds: float = DEFAULT_POLL_INTERVAL_SECONDS,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+) -> None:
+    """Continuously process queued documents until a termination signal arrives."""
+    stop_event = stop_event or Event()
+    _install_signal_handlers(stop_event)
+
+    with get_session_factory()() as session:
+        repository = DocumentRepository(session)
+        requeued_count = repository.requeue_processing_documents()
+        if requeued_count:
+            logger.warning(
+                "document_processing_jobs_requeued count=%s", requeued_count
+            )
+
+    logger.info(
+        "document_worker_started poll_interval_seconds=%s",
+        poll_interval_seconds,
+    )
+
+    while not stop_event.is_set():
+        processed_count = _process_pending_batch(batch_size=batch_size)
+        if processed_count == 0:
+            stop_event.wait(poll_interval_seconds)
+
+    logger.info("document_worker_stopped")
+
+
+def _process_pending_batch(*, batch_size: int) -> int:
+    with get_session_factory()() as session:
+        repository = DocumentRepository(session)
+        pending_documents = [
+            (document.id, Path(document.source_path))
+            for document in repository.list_pending(limit=batch_size)
+            if document.source_path
+        ]
+
+    for document_id, pdf_path in pending_documents:
+        if pdf_path.exists():
+            process_document_job(document_id, pdf_path)
+        else:
+            logger.error(
+                "document_processing_source_missing document_id=%s path=%s",
+                document_id,
+                pdf_path,
+            )
+
+    return len(pending_documents)
+
+
+def _install_signal_handlers(stop_event: Event) -> None:
+    def request_shutdown(signum: int, _frame: object) -> None:
+        logger.info("document_worker_shutdown_requested signal=%s", signum)
+        stop_event.set()
+
+    signal.signal(signal.SIGTERM, request_shutdown)
+    signal.signal(signal.SIGINT, request_shutdown)
+
+
+def main() -> int:
+    run_worker()
+    return 0

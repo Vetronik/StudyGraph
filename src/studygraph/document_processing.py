@@ -52,6 +52,8 @@ def process_pending_document(
                     document_id,
                 )
                 return existing_document
+            if existing_document.status not in {"pending", "failed"}:
+                return existing_document
         else:
             logger.info("document_processing_claimed document_id=%s", document_id)
 
