@@ -178,7 +178,10 @@ It restricts accepted HTTP `Host` headers to `localhost` and `127.0.0.1` by
 default; set `STUDYGRAPH_ALLOWED_HOSTS` when deploying behind a real domain.
 Login and registration responses are marked `Cache-Control: no-store`. Adjust
 `STUDYGRAPH_TOKEN_LIFETIME_SECONDS` for the desired bearer-token lifetime; the
-default is one hour.
+default is one hour. The optional remote answer provider is also protected by
+per-client request limits (`STUDYGRAPH_ANSWER_MAX_REQUESTS` within
+`STUDYGRAPH_ANSWER_RATE_WINDOW_SECONDS`); the local provider uses the same
+limit for predictable behavior.
 Dependency update pull requests are configured through Dependabot for Python
 packages and GitHub Actions.
 

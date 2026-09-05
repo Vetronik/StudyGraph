@@ -36,6 +36,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from studygraph.auth import (
     AuthenticationError,
     CurrentUser,
+    answer_rate_limiter,
     create_access_token,
     decode_access_token,
     login_rate_limiter,
@@ -59,6 +60,8 @@ from studygraph.collection_service import (
 from studygraph.config import (
     ConfigurationError,
     get_allowed_hosts,
+    get_answer_max_requests,
+    get_answer_rate_window_seconds,
     get_auth_max_login_attempts,
     get_auth_rate_window_seconds,
     get_auth_secret,
@@ -1127,8 +1130,25 @@ def build_rag_context(
 )
 def ask_documents(
     request: RAGAnswerRequest,
+    http_request: Request,
     rag_service: Annotated[RAGService, Depends(get_rag_service)],
 ) -> RAGAnswerResponse:
+    rate_window_seconds = get_answer_rate_window_seconds()
+    client_key = http_request.client.host if http_request.client else "unknown"
+    if answer_rate_limiter.is_blocked(
+        client_key,
+        max_attempts=get_answer_max_requests(),
+        window_seconds=rate_window_seconds,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many answer requests. Try again later.",
+            headers={"Retry-After": str(rate_window_seconds)},
+        )
+    answer_rate_limiter.record_failure(
+        client_key,
+        window_seconds=rate_window_seconds,
+    )
     try:
         result = rag_service.answer(
             query=request.query,

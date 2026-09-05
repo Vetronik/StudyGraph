@@ -76,6 +76,7 @@ class LoginRateLimiter:
 
 
 login_rate_limiter = LoginRateLimiter()
+answer_rate_limiter = LoginRateLimiter()
 
 
 def hash_password(password: str) -> str:

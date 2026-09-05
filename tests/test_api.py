@@ -15,9 +15,11 @@ from studygraph.api import (
     get_collection_service,
     get_document_processor,
     get_document_service,
+    get_rag_service,
 )
 from studygraph.auth import (
     AuthenticationError,
+    answer_rate_limiter,
     login_rate_limiter,
     resolve_owner_id,
 )
@@ -1133,6 +1135,30 @@ def test_ask_returns_answer_with_source_reference(
     assert answer_response.status_code == 200
     assert "[source 1]" in answer_response.json()["answer"]
     assert answer_response.json()["sources"][0]["page_number"] == 1
+
+
+def test_ask_rate_limit_protects_answer_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeRAGService:
+        def answer(self, *, query: str, max_chunks: int) -> SimpleNamespace:
+            return SimpleNamespace(query=query, answer="ok", sources=[])
+
+    monkeypatch.setenv("STUDYGRAPH_ANSWER_MAX_REQUESTS", "1")
+    monkeypatch.setenv("STUDYGRAPH_ANSWER_RATE_WINDOW_SECONDS", "300")
+    answer_rate_limiter.reset("testclient")
+    app.dependency_overrides[get_rag_service] = FakeRAGService
+    try:
+        with TestClient(app) as test_client:
+            first_response = test_client.post("/ask", json={"query": "first"})
+            second_response = test_client.post("/ask", json={"query": "second"})
+    finally:
+        answer_rate_limiter.reset("testclient")
+        app.dependency_overrides.clear()
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 429
+    assert second_response.headers["retry-after"] == "300"
 
 
 def test_document_quiz_returns_cloze_question_with_source(

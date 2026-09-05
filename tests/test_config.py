@@ -6,6 +6,8 @@ from studygraph.config import (
     REQUIRE_AUTH_TOKEN_ENV_VAR,
     ConfigurationError,
     get_allowed_hosts,
+    get_answer_max_requests,
+    get_answer_rate_window_seconds,
     get_auth_max_login_attempts,
     get_auth_rate_window_seconds,
     get_auth_secret,
@@ -101,6 +103,16 @@ def test_token_lifetime_can_be_configured(
     monkeypatch.setenv("STUDYGRAPH_TOKEN_LIFETIME_SECONDS", "900")
 
     assert get_token_lifetime_seconds() == 900
+
+
+def test_answer_rate_limit_defaults_are_positive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("STUDYGRAPH_ANSWER_MAX_REQUESTS", raising=False)
+    monkeypatch.delenv("STUDYGRAPH_ANSWER_RATE_WINDOW_SECONDS", raising=False)
+
+    assert get_answer_max_requests() == 30
+    assert get_answer_rate_window_seconds() == 300
 
 
 def test_allowed_hosts_defaults_to_wildcard_for_local_development(
