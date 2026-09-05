@@ -2,11 +2,12 @@ const state = {
   collections: [],
   documents: [],
   ownerId: localStorage.getItem("studygraph.ownerId") || "local-user",
-  accessToken: localStorage.getItem("studygraph.accessToken") || "",
+  accessToken: sessionStorage.getItem("studygraph.accessToken") || "",
   selectedDocumentId: null,
   selectedCollectionId: null,
 };
 const OWNER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,119}$/;
+localStorage.removeItem("studygraph.accessToken");
 
 const elements = {
   chunkList: document.querySelector("#chunk-list"),
@@ -103,7 +104,7 @@ async function login(username, password) {
     body: JSON.stringify({ username, password }),
   });
   state.accessToken = response.access_token;
-  localStorage.setItem("studygraph.accessToken", state.accessToken);
+  sessionStorage.setItem("studygraph.accessToken", state.accessToken);
   state.ownerId = username;
   localStorage.setItem("studygraph.ownerId", username);
   elements.ownerInput.value = username;
@@ -140,7 +141,7 @@ async function handleRegister() {
 
 function handleLogout() {
   state.accessToken = "";
-  localStorage.removeItem("studygraph.accessToken");
+  sessionStorage.removeItem("studygraph.accessToken");
   updateAuthControls();
   clearSelection();
   refreshWorkspace().catch(() => undefined);

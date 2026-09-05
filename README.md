@@ -181,7 +181,9 @@ Login and registration responses are marked `Cache-Control: no-store`. Adjust
 default is one hour. The optional remote answer provider is also protected by
 per-client request limits (`STUDYGRAPH_ANSWER_MAX_REQUESTS` within
 `STUDYGRAPH_ANSWER_RATE_WINDOW_SECONDS`); the local provider uses the same
-limit for predictable behavior.
+limit for predictable behavior. The web client keeps bearer tokens in
+`sessionStorage`, not persistent `localStorage`; users must sign in again after
+the browser session ends.
 Dependency update pull requests are configured through Dependabot for Python
 packages and GitHub Actions.
 
