@@ -164,6 +164,8 @@ required; the development fallback secret is rejected in that mode. The
 default compose command remains intentionally convenient for local single-user
 development. The API and worker containers run as an unprivileged user.
 The secure override also keeps PostgreSQL private to the Docker network.
+It restricts accepted HTTP `Host` headers to `localhost` and `127.0.0.1` by
+default; set `STUDYGRAPH_ALLOWED_HOSTS` when deploying behind a real domain.
 
 The current application processes an upload as a background task in the API
 container. The separate CLI worker remains available for recovery and manual

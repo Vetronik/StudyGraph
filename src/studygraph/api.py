@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from studygraph.auth import (
     AuthenticationError,
@@ -55,6 +56,7 @@ from studygraph.collection_service import (
 )
 from studygraph.config import (
     ConfigurationError,
+    get_allowed_hosts,
     get_auth_max_login_attempts,
     get_auth_rate_window_seconds,
     get_auth_secret,
@@ -117,6 +119,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+allowed_hosts = get_allowed_hosts()
+if allowed_hosts != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 

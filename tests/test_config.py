@@ -5,6 +5,7 @@ from studygraph.config import (
     LOG_LEVEL_ENV_VAR,
     REQUIRE_AUTH_TOKEN_ENV_VAR,
     ConfigurationError,
+    get_allowed_hosts,
     get_auth_max_login_attempts,
     get_auth_rate_window_seconds,
     get_auth_secret,
@@ -90,3 +91,19 @@ def test_auth_rate_limit_defaults_are_positive(
 
     assert get_auth_max_login_attempts() == 10
     assert get_auth_rate_window_seconds() == 300
+
+
+def test_allowed_hosts_defaults_to_wildcard_for_local_development(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("STUDYGRAPH_ALLOWED_HOSTS", raising=False)
+
+    assert get_allowed_hosts() == ["*"]
+
+
+def test_allowed_hosts_supports_comma_separated_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STUDYGRAPH_ALLOWED_HOSTS", " example.org, api.example.org ")
+
+    assert get_allowed_hosts() == ["example.org", "api.example.org"]

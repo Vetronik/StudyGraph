@@ -8,6 +8,7 @@ services:
       STUDYGRAPH_REQUIRE_AUTH_TOKEN: "true"
       STUDYGRAPH_REQUIRE_USER_HEADER: "false"
       STUDYGRAPH_PROCESS_UPLOADS_IN_API: "false"
+      STUDYGRAPH_ALLOWED_HOSTS: ${STUDYGRAPH_ALLOWED_HOSTS:-localhost,127.0.0.1}
 
   worker:
     environment:
