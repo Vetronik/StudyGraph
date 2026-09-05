@@ -195,6 +195,15 @@ copies outside the host and test restoring them into a separate database; a
 production deployment should additionally use encrypted offsite retention and
 scheduled execution.
 
+Restore only after verifying the target database and the backup contents:
+
+```powershell
+.\docker\postgres\restore.ps1 -BackupPath .\backups\studygraph-20260905-120000.sql -ConfirmRestore
+```
+
+The explicit confirmation switch prevents accidental restores during routine
+maintenance commands.
+
 The web interface refreshes the document statuses automatically while the
 worker processes uploads. A failed document can be queued again through the
 `POST /documents/{id}/retry` endpoint.
