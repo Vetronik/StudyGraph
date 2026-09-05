@@ -366,6 +366,15 @@ h2 {
   padding: 0 10px;
 }
 
+.filter-control select {
+  min-height: 34px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
 .collection-item {
   display: grid;
   gap: 8px;

@@ -4,6 +4,7 @@ const state = {
   ownerId: localStorage.getItem("studygraph.ownerId") || "local-user",
   accessToken: localStorage.getItem("studygraph.accessToken") || "",
   selectedDocumentId: null,
+  selectedCollectionId: null,
 };
 const OWNER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,119}$/;
 
@@ -13,6 +14,7 @@ const elements = {
   collectionForm: document.querySelector("#collection-form"),
   collectionList: document.querySelector("#collection-list"),
   collectionName: document.querySelector("#collection-name"),
+  collectionFilter: document.querySelector("#collection-filter"),
   askForm: document.querySelector("#ask-form"),
   askInput: document.querySelector("#ask-input"),
   askOutput: document.querySelector("#ask-output"),
@@ -239,6 +241,15 @@ async function refreshCollections() {
 }
 
 function renderCollections() {
+  const selectedValue = state.selectedCollectionId === null
+    ? ""
+    : String(state.selectedCollectionId);
+  elements.collectionFilter.replaceChildren();
+  elements.collectionFilter.append(new Option("All collections", ""));
+  for (const collection of state.collections) {
+    elements.collectionFilter.append(new Option(collection.name, collection.id));
+  }
+  elements.collectionFilter.value = selectedValue;
   elements.collectionList.replaceChildren();
 
   if (state.collections.length === 0) {
@@ -281,6 +292,7 @@ function renderCollections() {
     item.append(heading, count, actions);
     elements.collectionList.append(item);
   }
+  renderDocuments();
 }
 
 async function addSelectedDocument(collectionId) {
@@ -343,14 +355,29 @@ async function waitForDocumentProcessing(documentId) {
 function renderDocuments() {
   elements.documentList.replaceChildren();
 
-  if (state.documents.length === 0) {
+  const visibleDocuments = state.selectedCollectionId === null
+    ? state.documents
+    : state.documents.filter((documentItem) =>
+      state.collections.some((collection) =>
+        collection.id === state.selectedCollectionId &&
+        collection.documents.some((item) => item.id === documentItem.id),
+      ),
+    );
+
+  if (visibleDocuments.length === 0) {
     elements.documentList.append(
-      createTextElement("div", "empty-state", "No documents stored")
+      createTextElement(
+        "div",
+        "empty-state",
+        state.selectedCollectionId === null
+          ? "No documents stored"
+          : "No documents in this collection",
+      ),
     );
     return;
   }
 
-  for (const documentItem of state.documents) {
+  for (const documentItem of visibleDocuments) {
     const button = document.createElement("button");
     button.type = "button";
     button.className =
@@ -739,6 +766,23 @@ async function handleDelete() {
 
 elements.uploadForm.addEventListener("submit", handleUpload);
 elements.collectionForm.addEventListener("submit", handleCreateCollection);
+elements.collectionFilter.addEventListener("change", () => {
+  state.selectedCollectionId = elements.collectionFilter.value
+    ? Number(elements.collectionFilter.value)
+    : null;
+  const selectedIsVisible = state.documents.some((documentItem) =>
+    documentItem.id === state.selectedDocumentId &&
+    (state.selectedCollectionId === null || state.collections.some((collection) =>
+      collection.id === state.selectedCollectionId &&
+      collection.documents.some((item) => item.id === documentItem.id),
+    )),
+  );
+  if (state.selectedDocumentId !== null && !selectedIsVisible) {
+    clearSelection();
+  } else {
+    renderDocuments();
+  }
+});
 elements.askForm.addEventListener("submit", handleAsk);
 elements.authForm.addEventListener("submit", handleLogin);
 elements.registerButton.addEventListener("click", handleRegister);

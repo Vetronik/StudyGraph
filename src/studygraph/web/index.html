@@ -92,6 +92,12 @@
         <section class="panel documents-panel" aria-labelledby="documents-title">
           <div class="panel-heading">
             <h2 id="documents-title">Documents</h2>
+            <label class="filter-control">
+              <span class="sr-only">Filter by collection</span>
+              <select id="collection-filter" aria-label="Filter by collection">
+                <option value="">All collections</option>
+              </select>
+            </label>
             <span id="document-count" class="counter">0 stored</span>
           </div>
           <div id="document-list" class="document-list"></div>
