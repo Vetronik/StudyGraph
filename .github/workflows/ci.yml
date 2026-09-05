@@ -47,5 +47,13 @@ jobs:
       - name: Build Docker image
         run: docker build --tag studygraph:ci .
 
+      - name: Validate secure Compose configuration
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password_for_validation
+          POSTGRES_DB: ci_studygraph
+          STUDYGRAPH_AUTH_SECRET: ci-secret-for-compose-validation-only-32
+        run: docker compose -f docker-compose.yml -f docker-compose.secure.yml config --quiet
+
       - name: Run tests
         run: python -m pytest

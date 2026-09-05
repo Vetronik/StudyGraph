@@ -166,6 +166,17 @@ $env:POSTGRES_DB = "studygraph_production"
 docker compose -f docker-compose.yml -f docker-compose.secure.yml up --build -d
 ```
 
+To validate the merged Compose configuration without starting containers, set
+the same required variables to non-production values and run:
+
+```powershell
+$env:POSTGRES_USER = "compose_check_user"
+$env:POSTGRES_PASSWORD = "compose-check-password"
+$env:POSTGRES_DB = "compose_check"
+$env:STUDYGRAPH_AUTH_SECRET = "compose-check-secret-at-least-32-characters"
+docker compose -f docker-compose.yml -f docker-compose.secure.yml config --quiet
+```
+
 The secure override requires bearer tokens and disables the development owner
 header. `STUDYGRAPH_AUTH_SECRET` must be explicitly set when bearer tokens are
 required; the development fallback secret is rejected in that mode. The
