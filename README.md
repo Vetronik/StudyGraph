@@ -163,6 +163,7 @@ header. `STUDYGRAPH_AUTH_SECRET` must be explicitly set when bearer tokens are
 required; the development fallback secret is rejected in that mode. The
 default compose command remains intentionally convenient for local single-user
 development. The API and worker containers run as an unprivileged user.
+The secure override also keeps PostgreSQL private to the Docker network.
 
 The current application processes an upload as a background task in the API
 container. The separate CLI worker remains available for recovery and manual

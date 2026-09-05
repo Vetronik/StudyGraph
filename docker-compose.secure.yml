@@ -1,4 +1,7 @@
 services:
+  postgres:
+    ports: !reset []
+
   api:
     environment:
       STUDYGRAPH_AUTH_SECRET: ${STUDYGRAPH_AUTH_SECRET:?Set STUDYGRAPH_AUTH_SECRET to a strong secret}
