@@ -1510,7 +1510,11 @@ def retry_document(
         Depends(get_document_processor),
     ],
 ) -> DocumentResponse:
+    stored_path: Path | None = None
     try:
+        existing_document = document_service.get_document(document_id)
+        if existing_document.source_path:
+            stored_path = resolve_stored_document_path(existing_document.source_path)
         document = document_service.retry_document(document_id)
     except DocumentNotFoundError as error:
         raise HTTPException(
@@ -1522,15 +1526,18 @@ def retry_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not retry document processing.",
         ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not retry document processing.",
+        ) from error
+    except InvalidDocumentStoragePath as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Stored document path is invalid.",
+        ) from error
 
-    if document.source_path and get_process_uploads_in_api():
-        try:
-            stored_path = resolve_stored_document_path(document.source_path)
-        except InvalidDocumentStoragePath as error:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Stored document path is invalid.",
-            ) from error
+    if stored_path is not None and get_process_uploads_in_api():
         background_tasks.add_task(
             document_processor,
             document.id,
@@ -1550,17 +1557,14 @@ def delete_document(
 ) -> Response:
     try:
         document = document_service.get_document(document_id)
+        stored_path = (
+            resolve_stored_document_path(document.source_path)
+            if document.source_path
+            else None
+        )
         document_service.delete_document(document_id)
-        if document.source_path:
-            try:
-                resolve_stored_document_path(document.source_path).unlink(
-                    missing_ok=True,
-                )
-            except InvalidDocumentStoragePath as error:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Stored document path is invalid.",
-                ) from error
+        if stored_path is not None:
+            stored_path.unlink(missing_ok=True)
         logger.info(
             "document_deleted owner_id=%s document_id=%s filename=%s",
             document.owner_id,
