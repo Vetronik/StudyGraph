@@ -9,6 +9,7 @@ venv/
 
 # Tooling and caches
 .pytest_cache/
+.pytest-local-run/
 .mypy_cache/
 .ruff_cache/
 data/
