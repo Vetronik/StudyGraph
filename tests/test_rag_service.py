@@ -45,6 +45,8 @@ def test_openai_compatible_answer_provider_sends_grounded_prompt(
         api_url="https://example.test/v1/chat/completions",
         model="test-model",
         timeout_seconds=5,
+        max_context_characters=10,
+        max_output_tokens=25,
     )
     captured_requests: list[object] = []
 
@@ -70,7 +72,8 @@ def test_openai_compatible_answer_provider_sends_grounded_prompt(
     payload = json.loads(request.data)
     assert answer == "42 [source 1]"
     assert payload["model"] == "test-model"
-    assert "The answer is forty-two." in payload["messages"][1]["content"]
+    assert payload["max_tokens"] == 25
+    assert len(payload["messages"][1]["content"]) < 60
     assert "[source N]" in payload["messages"][0]["content"]
 
 

@@ -60,6 +60,8 @@ class OpenAICompatibleAnswerProvider:
         api_url: str,
         model: str,
         timeout_seconds: int,
+        max_context_characters: int,
+        max_output_tokens: int,
     ) -> None:
         if not api_key:
             raise ValueError("answer api_key must not be empty.")
@@ -67,12 +69,15 @@ class OpenAICompatibleAnswerProvider:
         self._api_url = api_url
         self._model = model
         self._timeout_seconds = timeout_seconds
+        self._max_context_characters = max_context_characters
+        self._max_output_tokens = max_output_tokens
 
     def answer(self, *, query: str, context: RetrievalContext) -> str:
         payload = json.dumps(
             {
                 "model": self._model,
                 "temperature": 0,
+                "max_tokens": self._max_output_tokens,
                 "messages": [
                     {
                         "role": "system",
@@ -84,7 +89,10 @@ class OpenAICompatibleAnswerProvider:
                     },
                     {
                         "role": "user",
-                        "content": f"Question: {query}\n\nContext:\n{context.context}",
+                        "content": (
+                            f"Question: {query}\n\nContext:\n"
+                            f"{context.context[:self._max_context_characters]}"
+                        ),
                     },
                 ],
             }
@@ -123,6 +131,8 @@ def get_answer_provider() -> AnswerProviderProtocol:
         ConfigurationError,
         get_answer_api_key,
         get_answer_api_url,
+        get_answer_max_context_characters,
+        get_answer_max_output_tokens,
         get_answer_model,
         get_answer_provider_name,
         get_answer_timeout_seconds,
@@ -140,6 +150,8 @@ def get_answer_provider() -> AnswerProviderProtocol:
         api_url=get_answer_api_url(),
         model=get_answer_model(),
         timeout_seconds=get_answer_timeout_seconds(),
+        max_context_characters=get_answer_max_context_characters(),
+        max_output_tokens=get_answer_max_output_tokens(),
     )
 
 

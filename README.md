@@ -40,6 +40,8 @@ learning progress in one workspace. 🚀
 - The current embedding provider is deterministic and intended for tests only.
 - The default answer provider is offline and extractive; an OpenAI-compatible LLM
   adapter is optional and must be explicitly enabled with a key and endpoint.
+- Remote answers are bounded by configurable context-character and output-token
+  limits to control privacy exposure and provider costs.
 - OCR support exists as an opt-in fallback, but still needs production hardening and
   broader language coverage.
 
