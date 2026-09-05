@@ -340,6 +340,17 @@ def test_frontend_index_is_served(client: TestClient) -> None:
     assert 'id="owner-input"' in response.text
 
 
+def test_responses_include_security_headers(client: TestClient) -> None:
+    response = client.get("/health")
+
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["permissions-policy"] == (
+        "camera=(), geolocation=(), microphone=()"
+    )
+
+
 def test_frontend_static_assets_are_served(client: TestClient) -> None:
     response = client.get("/static/app.js")
 
