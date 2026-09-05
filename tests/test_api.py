@@ -24,6 +24,7 @@ from studygraph.config import (
     get_max_document_characters,
     get_max_document_pages,
 )
+from studygraph.database import get_session
 from studygraph.document_model import Document, DocumentChunk, LearningProgress
 from studygraph.document_processing import (
     DocumentProcessingFailed,
@@ -364,6 +365,34 @@ def test_health_check_reports_configured_database(
         "status": "ok",
         "database_configured": True,
     }
+
+
+def test_readiness_check_returns_503_when_database_is_not_configured(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(DATABASE_URL_ENV_VAR, raising=False)
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Application configuration error."
+
+
+def test_readiness_check_returns_ready_when_database_query_succeeds() -> None:
+    class FakeSession:
+        def execute(self, _query: object) -> None:
+            return None
+
+    app.dependency_overrides[get_session] = lambda: FakeSession()
+    try:
+        with TestClient(app) as test_client:
+            response = test_client.get("/ready")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "database": "ok"}
 
 
 def test_create_document_returns_503_when_database_url_is_missing(

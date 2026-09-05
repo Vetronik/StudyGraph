@@ -26,6 +26,8 @@ from fastapi import (
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from studygraph.auth import (
@@ -141,6 +143,11 @@ class DocumentChunkResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     database_configured: bool
+
+
+class ReadinessResponse(BaseModel):
+    status: str
+    database: str
 
 
 class DocumentListResponse(BaseModel):
@@ -844,6 +851,25 @@ def list_documents(
         limit=document_list.limit,
         offset=document_list.offset,
     )
+
+
+@app.get(
+    "/ready",
+    response_model=ReadinessResponse,
+    status_code=status.HTTP_200_OK,
+)
+def readiness_check(
+    session: Annotated[Session, Depends(get_session)],
+) -> ReadinessResponse:
+    try:
+        session.execute(text("SELECT 1"))
+    except SQLAlchemyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is not ready.",
+        ) from error
+
+    return ReadinessResponse(status="ready", database="ok")
 
 
 @app.get(
