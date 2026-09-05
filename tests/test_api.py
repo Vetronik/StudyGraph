@@ -707,6 +707,7 @@ def test_auth_api_registers_and_logs_in_user(
         "created_at": "2026-08-15T12:00:00Z",
     }
     assert login_response.status_code == 200
+    assert login_response.headers["cache-control"] == "no-store"
     assert login_response.json()["token_type"] == "bearer"
     assert login_response.json()["expires_in"] == 3600
     assert isinstance(login_response.json()["access_token"], str)

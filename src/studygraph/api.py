@@ -68,6 +68,7 @@ from studygraph.config import (
     get_process_uploads_in_api,
     get_require_auth_token,
     get_require_user_header,
+    get_token_lifetime_seconds,
     is_database_configured,
 )
 from studygraph.database import get_session
@@ -167,6 +168,8 @@ async def add_security_headers(request: Request, call_next):
         "Permissions-Policy",
         "camera=(), geolocation=(), microphone=()",
     )
+    if request.url.path.startswith("/auth/") or request.url.path == "/metrics":
+        response.headers["Cache-Control"] = "no-store"
     response.headers[REQUEST_ID_HEADER] = request_id
     route = getattr(request.scope.get("route"), "path", "unmatched")
     http_metrics.observe(
@@ -718,10 +721,15 @@ def login_user(
         ) from error
 
     login_rate_limiter.reset(client_key)
+    lifetime_seconds = get_token_lifetime_seconds()
     return TokenResponse(
-        access_token=create_access_token(username, secret=get_auth_secret()),
+        access_token=create_access_token(
+            username,
+            secret=get_auth_secret(),
+            lifetime_seconds=lifetime_seconds,
+        ),
         token_type="bearer",
-        expires_in=3600,
+        expires_in=lifetime_seconds,
     )
 
 

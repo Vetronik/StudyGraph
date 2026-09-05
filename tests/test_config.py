@@ -13,6 +13,7 @@ from studygraph.config import (
     get_max_processing_attempts,
     get_metrics_enabled,
     get_process_uploads_in_api,
+    get_token_lifetime_seconds,
 )
 
 
@@ -92,6 +93,14 @@ def test_auth_rate_limit_defaults_are_positive(
 
     assert get_auth_max_login_attempts() == 10
     assert get_auth_rate_window_seconds() == 300
+
+
+def test_token_lifetime_can_be_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STUDYGRAPH_TOKEN_LIFETIME_SECONDS", "900")
+
+    assert get_token_lifetime_seconds() == 900
 
 
 def test_allowed_hosts_defaults_to_wildcard_for_local_development(

@@ -176,6 +176,9 @@ development. The API and worker containers run as an unprivileged user.
 The secure override also keeps PostgreSQL private to the Docker network.
 It restricts accepted HTTP `Host` headers to `localhost` and `127.0.0.1` by
 default; set `STUDYGRAPH_ALLOWED_HOSTS` when deploying behind a real domain.
+Login and registration responses are marked `Cache-Control: no-store`. Adjust
+`STUDYGRAPH_TOKEN_LIFETIME_SECONDS` for the desired bearer-token lifetime; the
+default is one hour.
 Dependency update pull requests are configured through Dependabot for Python
 packages and GitHub Actions.
 
