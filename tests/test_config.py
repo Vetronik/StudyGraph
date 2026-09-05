@@ -8,6 +8,7 @@ from studygraph.config import (
     get_auth_secret,
     get_log_level,
     get_max_processing_attempts,
+    get_process_uploads_in_api,
 )
 
 
@@ -61,3 +62,19 @@ def test_auth_secret_defaults_for_local_development(
     monkeypatch.setenv(REQUIRE_AUTH_TOKEN_ENV_VAR, "false")
 
     assert len(get_auth_secret()) >= 32
+
+
+def test_api_upload_processing_defaults_to_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("STUDYGRAPH_PROCESS_UPLOADS_IN_API", raising=False)
+
+    assert get_process_uploads_in_api() is True
+
+
+def test_api_upload_processing_can_be_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STUDYGRAPH_PROCESS_UPLOADS_IN_API", "false")
+
+    assert get_process_uploads_in_api() is False

@@ -168,6 +168,10 @@ The current application processes an upload as a background task in the API
 container. The separate CLI worker remains available for recovery and manual
 processing with `studygraph --process-pending`.
 
+For the secure Docker deployment, `STUDYGRAPH_PROCESS_UPLOADS_IN_API=false`
+keeps extraction in the dedicated worker. Local development defaults to `true`
+for convenience.
+
 The web interface refreshes the document statuses automatically while the
 worker processes uploads. A failed document can be queued again through the
 `POST /documents/{id}/retry` endpoint.

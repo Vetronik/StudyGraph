@@ -4,6 +4,7 @@ services:
       STUDYGRAPH_AUTH_SECRET: ${STUDYGRAPH_AUTH_SECRET:?Set STUDYGRAPH_AUTH_SECRET to a strong secret}
       STUDYGRAPH_REQUIRE_AUTH_TOKEN: "true"
       STUDYGRAPH_REQUIRE_USER_HEADER: "false"
+      STUDYGRAPH_PROCESS_UPLOADS_IN_API: "false"
 
   worker:
     environment:

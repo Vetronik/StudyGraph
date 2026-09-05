@@ -57,6 +57,7 @@ from studygraph.config import (
     get_auth_secret,
     get_document_storage_dir,
     get_max_upload_bytes,
+    get_process_uploads_in_api,
     get_require_auth_token,
     get_require_user_header,
     is_database_configured,
@@ -784,11 +785,12 @@ async def create_document(
             document.filename,
             document.file_size_bytes,
         )
-        background_tasks.add_task(
-            document_processor,
-            document.id,
-            persistent_path,
-        )
+        if get_process_uploads_in_api():
+            background_tasks.add_task(
+                document_processor,
+                document.id,
+                persistent_path,
+            )
     except UploadTooLargeError as error:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
@@ -1490,7 +1492,7 @@ def retry_document(
             detail="Could not retry document processing.",
         ) from error
 
-    if document.source_path:
+    if document.source_path and get_process_uploads_in_api():
         background_tasks.add_task(
             document_processor,
             document.id,
