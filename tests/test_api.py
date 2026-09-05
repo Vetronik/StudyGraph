@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from studygraph.api import (
     app,
+    get_auth_service,
     get_collection_service,
     get_document_processor,
     get_document_service,
@@ -607,6 +608,57 @@ def test_collection_api_manages_document_membership() -> None:
             assert remove_response.json()["documents"] == []
     finally:
         app.dependency_overrides.clear()
+
+
+def test_auth_api_registers_and_logs_in_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = SimpleNamespace(
+        username="alice",
+        created_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+    )
+
+    class FakeAuthService:
+        def register(self, username: str, password: str) -> SimpleNamespace:
+            assert username == "alice"
+            assert password == "correct horse battery staple"
+            return user
+
+        def authenticate(self, username: str, password: str) -> SimpleNamespace:
+            assert username == "alice"
+            assert password == "correct horse battery staple"
+            return user
+
+    monkeypatch.setenv("STUDYGRAPH_REQUIRE_AUTH_TOKEN", "false")
+    app.dependency_overrides[get_auth_service] = FakeAuthService
+    try:
+        with TestClient(app) as test_client:
+            register_response = test_client.post(
+                "/auth/register",
+                json={
+                    "username": " alice ",
+                    "password": "correct horse battery staple",
+                },
+            )
+            login_response = test_client.post(
+                "/auth/login",
+                json={
+                    "username": "alice",
+                    "password": "correct horse battery staple",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert register_response.status_code == 201
+    assert register_response.json() == {
+        "username": "alice",
+        "created_at": "2026-08-15T12:00:00Z",
+    }
+    assert login_response.status_code == 200
+    assert login_response.json()["token_type"] == "bearer"
+    assert login_response.json()["expires_in"] == 3600
+    assert isinstance(login_response.json()["access_token"], str)
 
 
 def test_get_document_returns_500_when_document_read_fails() -> None:
