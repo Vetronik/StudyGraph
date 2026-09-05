@@ -17,7 +17,7 @@ dependencies = [
     "psycopg[binary]>=3.2.0",
     "pytesseract>=0.3.10",
     "python-multipart>=0.0.9",
-    "sqlalchemy>=2.0.0",
+    "sqlalchemy>=2.0.52",
     "uvicorn>=0.30.0",
 ]
 
