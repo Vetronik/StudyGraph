@@ -20,6 +20,11 @@ EMBEDDING_PROVIDER_ENV_VAR = "STUDYGRAPH_EMBEDDING_PROVIDER"
 EMBEDDING_MODEL_ENV_VAR = "STUDYGRAPH_EMBEDDING_MODEL"
 EMBEDDING_API_KEY_ENV_VAR = "STUDYGRAPH_EMBEDDING_API_KEY"
 EMBEDDING_API_URL_ENV_VAR = "STUDYGRAPH_EMBEDDING_API_URL"
+ANSWER_PROVIDER_ENV_VAR = "STUDYGRAPH_ANSWER_PROVIDER"
+ANSWER_MODEL_ENV_VAR = "STUDYGRAPH_ANSWER_MODEL"
+ANSWER_API_KEY_ENV_VAR = "STUDYGRAPH_ANSWER_API_KEY"
+ANSWER_API_URL_ENV_VAR = "STUDYGRAPH_ANSWER_API_URL"
+ANSWER_TIMEOUT_SECONDS_ENV_VAR = "STUDYGRAPH_ANSWER_TIMEOUT_SECONDS"
 
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_DOCUMENT_STORAGE_DIR = "data/documents"
@@ -35,6 +40,10 @@ DEFAULT_OCR_LANGUAGE = "eng"
 DEFAULT_EMBEDDING_PROVIDER = "deterministic"
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
 DEFAULT_EMBEDDING_API_URL = "https://api.openai.com/v1/embeddings"
+DEFAULT_ANSWER_PROVIDER = "local"
+DEFAULT_ANSWER_MODEL = "gpt-4o-mini"
+DEFAULT_ANSWER_API_URL = "https://api.openai.com/v1/chat/completions"
+DEFAULT_ANSWER_TIMEOUT_SECONDS = 30
 VALID_LOG_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
 
 
@@ -194,6 +203,41 @@ def get_allowed_hosts() -> list[str]:
             f"{ALLOWED_HOSTS_ENV_VAR} must contain at least one host."
         )
     return hosts
+
+
+def get_answer_provider_name() -> str:
+    value = os.environ.get(ANSWER_PROVIDER_ENV_VAR, DEFAULT_ANSWER_PROVIDER)
+    normalized_value = value.strip().lower()
+    if normalized_value not in {"local", "openai-compatible"}:
+        raise ConfigurationError(
+            f"{ANSWER_PROVIDER_ENV_VAR} must be local or openai-compatible."
+        )
+    return normalized_value
+
+
+def get_answer_model() -> str:
+    value = os.environ.get(ANSWER_MODEL_ENV_VAR, DEFAULT_ANSWER_MODEL).strip()
+    if not value:
+        raise ConfigurationError(f"{ANSWER_MODEL_ENV_VAR} must not be empty.")
+    return value
+
+
+def get_answer_api_key() -> str:
+    return os.environ.get(ANSWER_API_KEY_ENV_VAR, "").strip()
+
+
+def get_answer_api_url() -> str:
+    value = os.environ.get(ANSWER_API_URL_ENV_VAR, DEFAULT_ANSWER_API_URL).strip()
+    if not value.startswith(("https://", "http://")):
+        raise ConfigurationError(f"{ANSWER_API_URL_ENV_VAR} must be an HTTP(S) URL.")
+    return value
+
+
+def get_answer_timeout_seconds() -> int:
+    return _get_positive_int_from_env(
+        ANSWER_TIMEOUT_SECONDS_ENV_VAR,
+        DEFAULT_ANSWER_TIMEOUT_SECONDS,
+    )
 
 
 def get_require_user_header() -> bool:

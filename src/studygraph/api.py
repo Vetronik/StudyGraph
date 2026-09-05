@@ -94,7 +94,7 @@ from studygraph.learning_service import (
     LocalQuizService,
 )
 from studygraph.logging_config import configure_logging
-from studygraph.rag_service import RAGService
+from studygraph.rag_service import AnswerProviderError, RAGService
 from studygraph.retrieval_service import RetrievalService
 from studygraph.user_repository import UserRepository
 
@@ -1115,6 +1115,11 @@ def ask_documents(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not answer the document question.",
+        ) from error
+    except AnswerProviderError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The configured answer provider is unavailable.",
         ) from error
 
     return RAGAnswerResponse(

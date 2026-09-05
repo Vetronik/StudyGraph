@@ -38,8 +38,8 @@ learning progress in one workspace. 🚀
 - Authentication currently uses application-managed accounts and signed bearer tokens;
   a production identity provider is not integrated yet.
 - The current embedding provider is deterministic and intended for tests only.
-- The default answer provider is offline and extractive; an external LLM is optional
-  and not integrated yet.
+- The default answer provider is offline and extractive; an OpenAI-compatible LLM
+  adapter is optional and must be explicitly enabled with a key and endpoint.
 - OCR support exists as an opt-in fallback, but still needs production hardening and
   broader language coverage.
 
@@ -361,9 +361,8 @@ The local `/ask` endpoint provides a source-cited offline fallback behind an
    collections and authentication is now in place.
 2. Finish the study workspace: filter search and learning actions by collection,
    improve loading/empty/error states, and add a small responsive UI test smoke path.
-3. Add production-ready AI answers: implement a provider adapter with explicit
-   privacy, timeout, token/cost, and source-grounding controls; keep offline mode as
-   the safe default.
+3. Harden the optional AI answer adapter with explicit privacy, token/cost, and
+   provider reliability controls; keep offline mode as the safe default.
 4. Harden operations: secure cookie/token handling, rate limits, upload isolation,
    health checks, backups, and documented deployment configuration.
 5. Improve ingestion quality: OCR language configuration, extraction diagnostics,
