@@ -1,4 +1,5 @@
 const state = {
+  collections: [],
   documents: [],
   ownerId: localStorage.getItem("studygraph.ownerId") || "local-user",
   accessToken: localStorage.getItem("studygraph.accessToken") || "",
@@ -8,6 +9,10 @@ const OWNER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,119}$/;
 
 const elements = {
   chunkList: document.querySelector("#chunk-list"),
+  collectionCount: document.querySelector("#collection-count"),
+  collectionForm: document.querySelector("#collection-form"),
+  collectionList: document.querySelector("#collection-list"),
+  collectionName: document.querySelector("#collection-name"),
   authForm: document.querySelector("#auth-form"),
   authUsername: document.querySelector("#auth-username"),
   authPassword: document.querySelector("#auth-password"),
@@ -206,6 +211,7 @@ async function refreshHealth() {
 async function refreshWorkspace() {
   await refreshHealth();
   await refreshDocuments();
+  await refreshCollections();
 }
 
 async function refreshDocuments() {
@@ -219,6 +225,101 @@ async function refreshDocuments() {
     !state.documents.some((documentItem) => documentItem.id === state.selectedDocumentId)
   ) {
     clearSelection();
+  }
+}
+
+async function refreshCollections() {
+  const collections = await requestJson("/collections");
+  state.collections = collections;
+  elements.collectionCount.textContent = `${formatNumber(collections.length)} saved`;
+  renderCollections();
+}
+
+function renderCollections() {
+  elements.collectionList.replaceChildren();
+
+  if (state.collections.length === 0) {
+    elements.collectionList.append(
+      createTextElement("div", "empty-state", "No collections yet"),
+    );
+    return;
+  }
+
+  for (const collection of state.collections) {
+    const item = document.createElement("article");
+    item.className = "collection-item";
+    const heading = createTextElement("strong", "item-title", collection.name);
+    const count = createTextElement(
+      "div",
+      "item-meta",
+      `${formatNumber(collection.documents.length)} document(s)`,
+    );
+    const actions = document.createElement("div");
+    actions.className = "collection-actions";
+    const addButton = createTextElement("button", "icon-button", "Add selected");
+    addButton.type = "button";
+    addButton.disabled = state.selectedDocumentId === null;
+    addButton.addEventListener("click", () => addSelectedDocument(collection.id));
+    actions.append(addButton);
+
+    for (const documentItem of collection.documents) {
+      const documentButton = createTextElement(
+        "button",
+        "collection-document",
+        `Remove ${documentItem.filename}`,
+      );
+      documentButton.type = "button";
+      documentButton.addEventListener("click", () =>
+        removeDocumentFromCollection(collection.id, documentItem.id),
+      );
+      actions.append(documentButton);
+    }
+
+    item.append(heading, count, actions);
+    elements.collectionList.append(item);
+  }
+}
+
+async function addSelectedDocument(collectionId) {
+  if (state.selectedDocumentId === null) return;
+  try {
+    await requestJson(`/collections/${collectionId}/documents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ document_id: state.selectedDocumentId }),
+    });
+    await refreshCollections();
+    showNotice("Document added to collection.", "success");
+  } catch (error) {
+    showNotice(getErrorMessage(error), "error");
+  }
+}
+
+async function removeDocumentFromCollection(collectionId, documentId) {
+  try {
+    await requestJson(`/collections/${collectionId}/documents/${documentId}`, {
+      method: "DELETE",
+    });
+    await refreshCollections();
+    showNotice("Document removed from collection.", "success");
+  } catch (error) {
+    showNotice(getErrorMessage(error), "error");
+  }
+}
+
+async function handleCreateCollection(event) {
+  event.preventDefault();
+  try {
+    await requestJson("/collections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: elements.collectionName.value.trim() }),
+    });
+    elements.collectionForm.reset();
+    await refreshCollections();
+    showNotice("Collection created.", "success");
+  } catch (error) {
+    showNotice(getErrorMessage(error), "error");
   }
 }
 
@@ -297,6 +398,7 @@ async function selectDocument(documentId) {
   renderDocumentDetail(documentItem);
   renderChunks(chunkList.items);
   renderProgress(progress);
+  renderCollections();
 }
 
 function renderProgress(progress) {
@@ -604,6 +706,7 @@ async function handleDelete() {
 }
 
 elements.uploadForm.addEventListener("submit", handleUpload);
+elements.collectionForm.addEventListener("submit", handleCreateCollection);
 elements.authForm.addEventListener("submit", handleLogin);
 elements.registerButton.addEventListener("click", handleRegister);
 elements.logoutButton.addEventListener("click", handleLogout);

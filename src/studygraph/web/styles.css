@@ -199,7 +199,8 @@ h2 {
 }
 
 .upload-panel,
-.documents-panel {
+.documents-panel,
+.collections-panel {
   grid-column: 1;
 }
 
@@ -322,11 +323,50 @@ h2 {
 }
 
 .document-list,
+.collection-list,
 .result-list,
 .chunk-list {
   display: grid;
   gap: 8px;
   padding: 12px;
+}
+
+.collection-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 12px;
+}
+
+.collection-form input {
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0 10px;
+}
+
+.collection-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.collection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.collection-document {
+  min-height: 32px;
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: var(--red);
+  font-size: 12px;
 }
 
 .document-item,
@@ -511,6 +551,7 @@ h2 {
 
   .upload-panel,
   .documents-panel,
+  .collections-panel,
   .search-panel,
   .detail-panel {
     grid-column: 1;
@@ -526,6 +567,7 @@ h2 {
 
   .upload-form,
   .search-form,
+  .collection-form,
   .meta-grid {
     grid-template-columns: 1fr;
   }
