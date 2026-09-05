@@ -17,7 +17,11 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     STUDYGRAPH_DOCUMENT_STORAGE_DIR=/app/data/documents
 
-RUN mkdir -p /app/data/documents
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin studygraph \
+    && mkdir -p /app/data/documents \
+    && chown -R studygraph:studygraph /app
+
+USER studygraph
 
 EXPOSE 8000
 
