@@ -53,6 +53,8 @@ jobs:
           POSTGRES_PASSWORD: ci_password_for_validation
           POSTGRES_DB: ci_studygraph
           STUDYGRAPH_AUTH_SECRET: ci-secret-for-compose-validation-only-32
+          STUDYGRAPH_EMBEDDING_MODEL: ci-embedding-model
+          STUDYGRAPH_EMBEDDING_API_KEY: ci-embedding-key
         run: docker compose -f docker-compose.yml -f docker-compose.secure.yml config --quiet
 
       - name: Run tests

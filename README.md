@@ -165,6 +165,8 @@ $env:STUDYGRAPH_AUTH_SECRET = "replace-with-a-random-secret-at-least-32-characte
 $env:POSTGRES_USER = "studygraph_production"
 $env:POSTGRES_PASSWORD = "replace-with-a-url-safe-random-password"
 $env:POSTGRES_DB = "studygraph_production"
+$env:STUDYGRAPH_EMBEDDING_MODEL = "text-embedding-3-small"
+$env:STUDYGRAPH_EMBEDDING_API_KEY = "replace-with-an-embedding-provider-key"
 docker compose -f docker-compose.yml -f docker-compose.secure.yml up --build -d
 ```
 
@@ -176,6 +178,8 @@ $env:POSTGRES_USER = "compose_check_user"
 $env:POSTGRES_PASSWORD = "compose-check-password"
 $env:POSTGRES_DB = "compose_check"
 $env:STUDYGRAPH_AUTH_SECRET = "compose-check-secret-at-least-32-characters"
+$env:STUDYGRAPH_EMBEDDING_MODEL = "compose-check-model"
+$env:STUDYGRAPH_EMBEDDING_API_KEY = "compose-check-key"
 docker compose -f docker-compose.yml -f docker-compose.secure.yml config --quiet
 ```
 
@@ -183,7 +187,10 @@ The secure override requires bearer tokens and disables the development owner
 header. `STUDYGRAPH_AUTH_SECRET` must be explicitly set when bearer tokens are
 required; the development fallback secret is rejected in that mode. The
 secure override also requires explicit PostgreSQL credentials; use a URL-safe
-password because it is embedded in `DATABASE_URL`. The
+password because it is embedded in `DATABASE_URL`. The secure override requires
+a real OpenAI-compatible embedding provider and does not fall back to
+deterministic test embeddings. The provider must return 64-dimensional vectors,
+matching the current database schema. The
 default compose command remains intentionally convenient for local single-user
 development. The API and worker containers run as an unprivileged user.
 The secure override also keeps PostgreSQL private to the Docker network.
