@@ -182,6 +182,19 @@ For the secure Docker deployment, `STUDYGRAPH_PROCESS_UPLOADS_IN_API=false`
 keeps extraction in the dedicated worker. Local development defaults to `true`
 for convenience.
 
+### Database backups
+
+Create a logical PostgreSQL backup while the Compose stack is running:
+
+```powershell
+.\docker\postgres\backup.ps1
+```
+
+The generated SQL file is written to the ignored `backups/` directory. Store
+copies outside the host and test restoring them into a separate database; a
+production deployment should additionally use encrypted offsite retention and
+scheduled execution.
+
 The web interface refreshes the document statuses automatically while the
 worker processes uploads. A failed document can be queued again through the
 `POST /documents/{id}/retry` endpoint.

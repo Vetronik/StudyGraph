@@ -13,6 +13,7 @@ venv/
 .mypy_cache/
 .ruff_cache/
 data/
+backups/
 
 # Local environment files
 .env
