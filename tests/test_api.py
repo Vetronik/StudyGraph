@@ -2,13 +2,19 @@ import hashlib
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Annotated
 
 import pytest
 from fastapi import Header, HTTPException, status
 from fastapi.testclient import TestClient
 
-from studygraph.api import app, get_document_processor, get_document_service
+from studygraph.api import (
+    app,
+    get_collection_service,
+    get_document_processor,
+    get_document_service,
+)
 from studygraph.auth import AuthenticationError, resolve_owner_id
 from studygraph.config import (
     DATABASE_URL_ENV_VAR,
@@ -506,6 +512,72 @@ def test_get_document_returns_404_for_unknown_id(client: TestClient) -> None:
     assert response.json() == {
         "detail": "Document with id 999 was not found."
     }
+
+
+def test_collection_api_manages_document_membership() -> None:
+    collections: list[SimpleNamespace] = []
+    next_id = 1
+
+    class FakeCollectionService:
+        def create(self, name: str) -> SimpleNamespace:
+            nonlocal next_id
+            collection = SimpleNamespace(
+                id=next_id,
+                name=name,
+                created_at=datetime(2026, 8, 15, 12, 0, tzinfo=UTC),
+                documents=[],
+            )
+            next_id += 1
+            collections.append(collection)
+            return collection
+
+        def list(self) -> SimpleNamespace:
+            return SimpleNamespace(collections=collections)
+
+        def add_document(self, collection_id: int, document_id: int) -> SimpleNamespace:
+            collection = next(item for item in collections if item.id == collection_id)
+            collection.documents.append(
+                SimpleNamespace(id=document_id, filename="lecture.pdf")
+            )
+            return collection
+
+        def remove_document(
+            self,
+            collection_id: int,
+            document_id: int,
+        ) -> SimpleNamespace:
+            collection = next(item for item in collections if item.id == collection_id)
+            collection.documents = [
+                item for item in collection.documents if item.id != document_id
+            ]
+            return collection
+
+    app.dependency_overrides[get_collection_service] = FakeCollectionService
+    try:
+        with TestClient(app) as test_client:
+            create_response = test_client.post(
+                "/collections",
+                json={"name": "  Calculus  "},
+            )
+            assert create_response.status_code == 201
+            collection_id = create_response.json()["id"]
+
+            add_response = test_client.post(
+                f"/collections/{collection_id}/documents",
+                json={"document_id": 7},
+            )
+            assert add_response.status_code == 200
+            assert add_response.json()["documents"] == [
+                {"id": 7, "filename": "lecture.pdf"}
+            ]
+
+            remove_response = test_client.delete(
+                f"/collections/{collection_id}/documents/7",
+            )
+            assert remove_response.status_code == 200
+            assert remove_response.json()["documents"] == []
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_get_document_returns_500_when_document_read_fails() -> None:
