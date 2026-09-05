@@ -71,6 +71,16 @@ def test_auth_secret_defaults_for_local_development(
     assert len(get_auth_secret()) >= 32
 
 
+def test_auth_secret_rejects_development_value_when_bearer_auth_is_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(AUTH_SECRET_ENV_VAR, "development-only-secret-value-123456")
+    monkeypatch.setenv(REQUIRE_AUTH_TOKEN_ENV_VAR, "true")
+
+    with pytest.raises(ConfigurationError, match="development-only"):
+        get_auth_secret()
+
+
 def test_api_upload_processing_defaults_to_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -111,6 +111,10 @@ def get_auth_secret() -> str:
         )
 
     value = configured_value or DEFAULT_AUTH_SECRET
+    if get_require_auth_token() and value.startswith("development-only"):
+        raise ConfigurationError(
+            f"{AUTH_SECRET_ENV_VAR} must not use the development-only secret."
+        )
     if len(value) < 32:
         raise ConfigurationError(
             f"{AUTH_SECRET_ENV_VAR} must contain at least 32 characters."

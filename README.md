@@ -186,6 +186,8 @@ docker compose -f docker-compose.yml -f docker-compose.secure.yml config --quiet
 The secure override requires bearer tokens and disables the development owner
 header. `STUDYGRAPH_AUTH_SECRET` must be explicitly set when bearer tokens are
 required; the development fallback secret is rejected in that mode. The
+known `development-only...` secret prefix is rejected even when explicitly
+configured. The
 secure override also requires explicit PostgreSQL credentials; use a URL-safe
 password because it is embedded in `DATABASE_URL`. The secure override requires
 a real OpenAI-compatible embedding provider and does not fall back to
