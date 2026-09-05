@@ -17,7 +17,11 @@ from studygraph.document_processing import (
     process_pending_document,
 )
 from studygraph.document_repository import DocumentRepository
-from studygraph.document_service import DocumentService
+from studygraph.document_service import (
+    DocumentReadError,
+    DocumentService,
+    DocumentStorageError,
+)
 from studygraph.document_storage import (
     InvalidDocumentStoragePath,
     resolve_stored_document_path,
@@ -117,31 +121,60 @@ def run_worker(
 def _process_pending_batch(*, batch_size: int) -> int:
     with get_session_factory()() as session:
         repository = DocumentRepository(session)
-        pending_documents = [
-            (document.id, document.source_path)
-            for document in repository.list_pending(limit=batch_size)
-            if document.source_path
-        ]
+        pending_documents: list[tuple[int, Path]] = []
+        for document in repository.list_pending(limit=batch_size):
+            if not document.source_path:
+                continue
 
-    for document_id, source_path in pending_documents:
-        try:
-            pdf_path = resolve_stored_document_path(source_path)
-        except InvalidDocumentStoragePath:
-            logger.error(
-                "document_processing_path_invalid document_id=%s",
-                document_id,
-            )
-            continue
-        if pdf_path.exists():
-            process_document_job(document_id, pdf_path)
-        else:
-            logger.error(
-                "document_processing_source_missing document_id=%s path=%s",
-                document_id,
-                pdf_path,
-            )
+            try:
+                pdf_path = resolve_stored_document_path(document.source_path)
+            except InvalidDocumentStoragePath:
+                _mark_source_failed(
+                    repository,
+                    document,
+                    "Stored document path is outside the configured storage directory.",
+                )
+                continue
+
+            if not pdf_path.exists():
+                _mark_source_failed(
+                    repository,
+                    document,
+                    "Stored document source file is missing.",
+                )
+                continue
+
+            pending_documents.append((document.id, pdf_path))
+
+    for document_id, pdf_path in pending_documents:
+        process_document_job(document_id, pdf_path)
 
     return len(pending_documents)
+
+
+def _mark_source_failed(
+    repository: DocumentRepository,
+    document: Document,
+    error_message: str,
+) -> None:
+    service = DocumentService(repository, owner_id=document.owner_id)
+    try:
+        service.mark_document_failed(
+            document.id,
+            error_message=error_message,
+        )
+    except (DocumentReadError, DocumentStorageError):
+        logger.exception(
+            "document_processing_failure_state_error document_id=%s",
+            document.id,
+        )
+        return
+
+    logger.error(
+        "document_processing_source_unavailable document_id=%s reason=%s",
+        document.id,
+        error_message,
+    )
 
 
 def _install_signal_handlers(stop_event: Event) -> None:
