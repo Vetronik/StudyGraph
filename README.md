@@ -25,6 +25,7 @@ learning progress in one workspace. 🚀
 - Database locking to prevent duplicate processing
 - Retry discovery for failed or interrupted processing jobs
 - Minimal browser interface for upload, search, inspection, and deletion
+- Browser interface for authentication, learning tools, and document collections
 - Structured logging without logging extracted document text
 - Unit tests, migration tests, and optional PostgreSQL integration tests
 
@@ -34,8 +35,10 @@ learning progress in one workspace. 🚀
 - Authentication currently uses application-managed accounts and signed bearer tokens;
   a production identity provider is not integrated yet.
 - The current embedding provider is deterministic and intended for tests only.
-- No LLM is called and no AI-generated answer is produced yet.
-- OCR for scanned PDFs is not implemented yet.
+- The default answer provider is offline and extractive; an external LLM is optional
+  and not integrated yet.
+- OCR support exists as an opt-in fallback, but still needs production hardening and
+  broader language coverage.
 
 ## Architecture 🧱
 
@@ -309,15 +312,22 @@ stack are implemented. Embeddings are configurable through
 local default, while `openai-compatible` uses the configured API URL, model,
 and key. The database schema currently uses 64-dimensional vectors.
 
-The local `/ask` endpoint now provides a source-cited offline fallback behind an
-`AnswerProviderProtocol`. The next larger milestones are:
+The local `/ask` endpoint provides a source-cited offline fallback behind an
+`AnswerProviderProtocol`. The next steps are ordered by risk and user value:
 
-1. Add an LLM-backed answer provider with token/cost and privacy controls.
-2. Improve quizzes with multiple question types and answer validation.
-3. Add flashcards and collections on top of the existing document and progress
-   model.
-4. Harden authentication and deployment settings before exposing the service
-   beyond the laptop.
+1. Stabilize the current product: add API coverage for collections and auth flows,
+   make background processing observable, and keep the README/configuration aligned.
+2. Finish the study workspace: filter search and learning actions by collection,
+   improve loading/empty/error states, and add a small responsive UI test smoke path.
+3. Add production-ready AI answers: implement a provider adapter with explicit
+   privacy, timeout, token/cost, and source-grounding controls; keep offline mode as
+   the safe default.
+4. Harden operations: secure cookie/token handling, rate limits, upload isolation,
+   health checks, backups, and documented deployment configuration.
+5. Improve ingestion quality: OCR language configuration, extraction diagnostics,
+   duplicate handling, and larger-document processing outside the API process.
+6. Add learning depth only after the foundation is stable: spaced repetition,
+   progress analytics, and topic/knowledge-graph views based on real usage data.
 
 ## Contributing 🤝
 
