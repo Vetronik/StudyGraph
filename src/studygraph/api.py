@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import os
 import shutil
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -728,7 +729,20 @@ def _persist_upload(saved_upload: SavedUpload) -> Path:
     storage_dir = Path(get_document_storage_dir()).resolve()
     storage_dir.mkdir(parents=True, exist_ok=True)
     persistent_path = storage_dir / f"upload-{uuid4().hex}.pdf"
-    shutil.copyfile(saved_upload.path, persistent_path)
+    temporary_path = storage_dir / f".upload-{uuid4().hex}.tmp"
+
+    try:
+        with (
+            saved_upload.path.open("rb") as source,
+            temporary_path.open("xb") as target,
+        ):
+            shutil.copyfileobj(source, target)
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, persistent_path)
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
     saved_upload.path.unlink(missing_ok=True)
     return persistent_path
 
