@@ -5,6 +5,8 @@ from studygraph.config import (
     LOG_LEVEL_ENV_VAR,
     REQUIRE_AUTH_TOKEN_ENV_VAR,
     ConfigurationError,
+    get_auth_max_login_attempts,
+    get_auth_rate_window_seconds,
     get_auth_secret,
     get_log_level,
     get_max_processing_attempts,
@@ -78,3 +80,13 @@ def test_api_upload_processing_can_be_disabled(
     monkeypatch.setenv("STUDYGRAPH_PROCESS_UPLOADS_IN_API", "false")
 
     assert get_process_uploads_in_api() is False
+
+
+def test_auth_rate_limit_defaults_are_positive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("STUDYGRAPH_AUTH_MAX_LOGIN_ATTEMPTS", raising=False)
+    monkeypatch.delenv("STUDYGRAPH_AUTH_RATE_WINDOW_SECONDS", raising=False)
+
+    assert get_auth_max_login_attempts() == 10
+    assert get_auth_rate_window_seconds() == 300

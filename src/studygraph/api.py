@@ -35,6 +35,7 @@ from studygraph.auth import (
     CurrentUser,
     create_access_token,
     decode_access_token,
+    login_rate_limiter,
     resolve_owner_id,
 )
 from studygraph.auth_service import (
@@ -54,6 +55,8 @@ from studygraph.collection_service import (
 )
 from studygraph.config import (
     ConfigurationError,
+    get_auth_max_login_attempts,
+    get_auth_rate_window_seconds,
     get_auth_secret,
     get_document_storage_dir,
     get_max_upload_bytes,
@@ -621,17 +624,36 @@ def register_user(
 )
 def login_user(
     request: AuthRequest,
+    http_request: Request,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> TokenResponse:
+    rate_window_seconds = get_auth_rate_window_seconds()
+    client_key = http_request.client.host if http_request.client else "unknown"
+    if login_rate_limiter.is_blocked(
+        client_key,
+        max_attempts=get_auth_max_login_attempts(),
+        window_seconds=rate_window_seconds,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Try again later.",
+            headers={"Retry-After": str(rate_window_seconds)},
+        )
+
     username = _normalize_username(request.username)
     try:
         auth_service.authenticate(username, request.password)
     except InvalidCredentialsError as error:
+        login_rate_limiter.record_failure(
+            client_key,
+            window_seconds=rate_window_seconds,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password.",
         ) from error
 
+    login_rate_limiter.reset(client_key)
     return TokenResponse(
         access_token=create_access_token(username, secret=get_auth_secret()),
         token_type="bearer",

@@ -16,7 +16,12 @@ from studygraph.api import (
     get_document_processor,
     get_document_service,
 )
-from studygraph.auth import AuthenticationError, resolve_owner_id
+from studygraph.auth import (
+    AuthenticationError,
+    login_rate_limiter,
+    resolve_owner_id,
+)
+from studygraph.auth_service import InvalidCredentialsError
 from studygraph.config import (
     DATABASE_URL_ENV_VAR,
     MAX_DOCUMENT_CHARACTERS_ENV_VAR,
@@ -670,6 +675,35 @@ def test_auth_api_registers_and_logs_in_user(
     assert login_response.json()["token_type"] == "bearer"
     assert login_response.json()["expires_in"] == 3600
     assert isinstance(login_response.json()["access_token"], str)
+
+
+def test_auth_api_throttles_repeated_failed_logins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailingAuthService:
+        def authenticate(self, _username: str, _password: str) -> None:
+            raise InvalidCredentialsError
+
+    monkeypatch.setenv("STUDYGRAPH_AUTH_MAX_LOGIN_ATTEMPTS", "1")
+    monkeypatch.setenv("STUDYGRAPH_AUTH_RATE_WINDOW_SECONDS", "300")
+    app.dependency_overrides[get_auth_service] = FailingAuthService
+    try:
+        with TestClient(app) as test_client:
+            first_response = test_client.post(
+                "/auth/login",
+                json={"username": "alice", "password": "wrong password"},
+            )
+            second_response = test_client.post(
+                "/auth/login",
+                json={"username": "alice", "password": "wrong password"},
+            )
+    finally:
+        login_rate_limiter.reset("testclient")
+        app.dependency_overrides.clear()
+
+    assert first_response.status_code == 401
+    assert second_response.status_code == 429
+    assert second_response.headers["retry-after"] == "300"
 
 
 def test_get_document_returns_500_when_document_read_fails() -> None:

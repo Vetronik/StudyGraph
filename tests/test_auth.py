@@ -2,6 +2,7 @@ import pytest
 
 from studygraph.auth import (
     AuthenticationError,
+    LoginRateLimiter,
     create_access_token,
     decode_access_token,
     hash_password,
@@ -90,3 +91,34 @@ def test_auth_service_rejects_invalid_credentials() -> None:
 
     with pytest.raises(InvalidCredentialsError):
         service.authenticate("alice", "wrong password")
+
+
+def test_login_rate_limiter_blocks_after_failed_attempt_limit() -> None:
+    limiter = LoginRateLimiter()
+
+    limiter.record_failure("client-a", window_seconds=300)
+    limiter.record_failure("client-a", window_seconds=300)
+
+    assert limiter.is_blocked(
+        "client-a",
+        max_attempts=2,
+        window_seconds=300,
+    )
+    assert not limiter.is_blocked(
+        "client-b",
+        max_attempts=2,
+        window_seconds=300,
+    )
+
+
+def test_login_rate_limiter_reset_allows_login_again() -> None:
+    limiter = LoginRateLimiter()
+    limiter.record_failure("client-a", window_seconds=300)
+
+    limiter.reset("client-a")
+
+    assert not limiter.is_blocked(
+        "client-a",
+        max_attempts=1,
+        window_seconds=300,
+    )

@@ -4,18 +4,78 @@ import hmac
 import json
 import re
 import secrets
+import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from studygraph.document_service import DEFAULT_OWNER_ID
 
 OWNER_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,119}$")
 PASSWORD_HASH_ITERATIONS = 600_000
 TOKEN_LIFETIME_SECONDS = 3_600
+MAX_TRACKED_LOGIN_KEYS = 10_000
 
 
 class AuthenticationError(Exception):
     """Raised when request user information is missing or invalid."""
+
+
+@dataclass
+class LoginRateLimiter:
+    """Track failed logins per key for defense-in-depth throttling."""
+
+    _failures: dict[str, list[float]] = field(default_factory=dict)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def is_blocked(self, key: str, *, max_attempts: int, window_seconds: int) -> bool:
+        with self._lock:
+            failures = self._active_failures(
+                key,
+                window_seconds=window_seconds,
+                now=time.monotonic(),
+            )
+            return len(failures) >= max_attempts
+
+    def record_failure(self, key: str, *, window_seconds: int) -> None:
+        with self._lock:
+            failures = self._active_failures(
+                key,
+                window_seconds=window_seconds,
+                now=time.monotonic(),
+            )
+            if (
+                key not in self._failures
+                and len(self._failures) >= MAX_TRACKED_LOGIN_KEYS
+            ):
+                self._failures.pop(next(iter(self._failures)))
+            failures.append(time.monotonic())
+            self._failures[key] = failures
+
+    def reset(self, key: str) -> None:
+        with self._lock:
+            self._failures.pop(key, None)
+
+    def _active_failures(
+        self,
+        key: str,
+        *,
+        window_seconds: int,
+        now: float,
+    ) -> list[float]:
+        cutoff = now - window_seconds
+        failures = [
+            timestamp
+            for timestamp in self._failures.get(key, [])
+            if timestamp > cutoff
+        ]
+        if failures:
+            self._failures[key] = failures
+        else:
+            self._failures.pop(key, None)
+        return failures
+
+
+login_rate_limiter = LoginRateLimiter()
 
 
 def hash_password(password: str) -> str:
