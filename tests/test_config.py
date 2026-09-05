@@ -11,6 +11,7 @@ from studygraph.config import (
     get_auth_secret,
     get_log_level,
     get_max_processing_attempts,
+    get_metrics_enabled,
     get_process_uploads_in_api,
 )
 
@@ -107,3 +108,11 @@ def test_allowed_hosts_supports_comma_separated_values(
     monkeypatch.setenv("STUDYGRAPH_ALLOWED_HOSTS", " example.org, api.example.org ")
 
     assert get_allowed_hosts() == ["example.org", "api.example.org"]
+
+
+def test_metrics_are_disabled_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("STUDYGRAPH_METRICS_ENABLED", raising=False)
+
+    assert get_metrics_enabled() is False

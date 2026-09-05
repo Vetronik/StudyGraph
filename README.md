@@ -42,6 +42,9 @@ learning progress in one workspace. 🚀
   adapter is optional and must be explicitly enabled with a key and endpoint.
 - Remote answers are bounded by configurable context-character and output-token
   limits to control privacy exposure and provider costs.
+- Optional Prometheus-compatible HTTP metrics are available at `/metrics` when
+  `STUDYGRAPH_METRICS_ENABLED=true`; the secure Compose profile enables them by
+  default for internal monitoring.
 - OCR support exists as an opt-in fallback, but still needs production hardening and
   broader language coverage.
 

@@ -377,6 +377,20 @@ def test_invalid_request_id_is_replaced(client: TestClient) -> None:
     assert len(generated_request_id) == 32
 
 
+def test_metrics_endpoint_is_opt_in(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STUDYGRAPH_METRICS_ENABLED", "true")
+
+    client.get("/health")
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "studygraph_http_requests_total" in response.text
+    assert 'route="/health"' in response.text
+
+
 def test_frontend_static_assets_are_served(client: TestClient) -> None:
     response = client.get("/static/app.js")
 

@@ -25,7 +25,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -64,6 +64,7 @@ from studygraph.config import (
     get_auth_secret,
     get_document_storage_dir,
     get_max_upload_bytes,
+    get_metrics_enabled,
     get_process_uploads_in_api,
     get_require_auth_token,
     get_require_user_header,
@@ -94,11 +95,13 @@ from studygraph.learning_service import (
     LocalQuizService,
 )
 from studygraph.logging_config import configure_logging
+from studygraph.metrics import HttpMetrics
 from studygraph.rag_service import AnswerProviderError, RAGService
 from studygraph.retrieval_service import RetrievalService
 from studygraph.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
+http_metrics = HttpMetrics()
 
 TEXT_PREVIEW_MAX_CHARACTERS = 300
 SEARCH_SNIPPET_CONTEXT_CHARACTERS = 80
@@ -165,6 +168,13 @@ async def add_security_headers(request: Request, call_next):
         "camera=(), geolocation=(), microphone=()",
     )
     response.headers[REQUEST_ID_HEADER] = request_id
+    route = getattr(request.scope.get("route"), "path", "unmatched")
+    http_metrics.observe(
+        method=request.method,
+        route=route,
+        status_code=response.status_code,
+        duration_seconds=time.perf_counter() - started_at,
+    )
     logger.info(
         "http_request_completed method=%s path=%s status_code=%s "
         "duration_ms=%.2f request_id=%s",
@@ -175,6 +185,16 @@ async def add_security_headers(request: Request, call_next):
         request_id,
     )
     return response
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics() -> PlainTextResponse:
+    if not get_metrics_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return PlainTextResponse(
+        http_metrics.render_prometheus(),
+        media_type="text/plain; version=0.0.4",
+    )
 
 
 class DocumentResponse(BaseModel):
