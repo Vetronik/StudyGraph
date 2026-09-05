@@ -18,6 +18,10 @@ from studygraph.document_processing import (
 )
 from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import DocumentService
+from studygraph.document_storage import (
+    InvalidDocumentStoragePath,
+    resolve_stored_document_path,
+)
 
 logger = logging.getLogger(__name__)
 DEFAULT_POLL_INTERVAL_SECONDS = 2
@@ -29,6 +33,15 @@ def has_reached_retry_limit(document: Document, *, max_attempts: int) -> bool:
 
 
 def process_document_job(document_id: int, pdf_path: Path) -> None:
+    try:
+        pdf_path = resolve_stored_document_path(str(pdf_path))
+    except InvalidDocumentStoragePath:
+        logger.error(
+            "document_processing_path_invalid document_id=%s",
+            document_id,
+        )
+        return
+
     with get_session_factory()() as session:
         repository = DocumentRepository(session)
         document = repository.get_for_processing(document_id)
@@ -105,12 +118,20 @@ def _process_pending_batch(*, batch_size: int) -> int:
     with get_session_factory()() as session:
         repository = DocumentRepository(session)
         pending_documents = [
-            (document.id, Path(document.source_path))
+            (document.id, document.source_path)
             for document in repository.list_pending(limit=batch_size)
             if document.source_path
         ]
 
-    for document_id, pdf_path in pending_documents:
+    for document_id, source_path in pending_documents:
+        try:
+            pdf_path = resolve_stored_document_path(source_path)
+        except InvalidDocumentStoragePath:
+            logger.error(
+                "document_processing_path_invalid document_id=%s",
+                document_id,
+            )
+            continue
         if pdf_path.exists():
             process_document_job(document_id, pdf_path)
         else:

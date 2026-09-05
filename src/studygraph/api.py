@@ -80,6 +80,10 @@ from studygraph.document_service import (
     DocumentService,
     DocumentStorageError,
 )
+from studygraph.document_storage import (
+    InvalidDocumentStoragePath,
+    resolve_stored_document_path,
+)
 from studygraph.document_worker import process_document_job
 from studygraph.embedding_service import get_embedding_provider
 from studygraph.learning_service import (
@@ -1520,10 +1524,17 @@ def retry_document(
         ) from error
 
     if document.source_path and get_process_uploads_in_api():
+        try:
+            stored_path = resolve_stored_document_path(document.source_path)
+        except InvalidDocumentStoragePath as error:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Stored document path is invalid.",
+            ) from error
         background_tasks.add_task(
             document_processor,
             document.id,
-            Path(document.source_path),
+            stored_path,
         )
 
     return _build_document_response(document)
@@ -1541,7 +1552,15 @@ def delete_document(
         document = document_service.get_document(document_id)
         document_service.delete_document(document_id)
         if document.source_path:
-            Path(document.source_path).unlink(missing_ok=True)
+            try:
+                resolve_stored_document_path(document.source_path).unlink(
+                    missing_ok=True,
+                )
+            except InvalidDocumentStoragePath as error:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Stored document path is invalid.",
+                ) from error
         logger.info(
             "document_deleted owner_id=%s document_id=%s filename=%s",
             document.owner_id,
