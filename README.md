@@ -26,6 +26,9 @@ learning progress in one workspace. 🚀
 - Retry discovery for failed or interrupted processing jobs
 - Minimal browser interface for upload, search, inspection, and deletion
 - Browser interface for authentication, learning tools, and document collections
+- Source-grounded offline question answering in the browser
+- Separate liveness and PostgreSQL readiness checks
+- Non-root API/worker containers with Docker image validation in CI
 - Structured logging without logging extracted document text
 - Unit tests, migration tests, and optional PostgreSQL integration tests
 
@@ -317,8 +320,9 @@ and key. The database schema currently uses 64-dimensional vectors.
 The local `/ask` endpoint provides a source-cited offline fallback behind an
 `AnswerProviderProtocol`. The next steps are ordered by risk and user value:
 
-1. Stabilize the current product: add API coverage for collections and auth flows,
-   make background processing observable, and keep the README/configuration aligned.
+1. Stabilize the current product: make background processing observable and keep
+   README/configuration aligned as the deployment evolves. API coverage for
+   collections and authentication is now in place.
 2. Finish the study workspace: filter search and learning actions by collection,
    improve loading/empty/error states, and add a small responsive UI test smoke path.
 3. Add production-ready AI answers: implement a provider adapter with explicit
