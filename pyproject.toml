@@ -16,7 +16,7 @@ dependencies = [
     "PyMuPDF>=1.24.0",
     "psycopg[binary]>=3.2.0",
     "pytesseract>=0.3.10",
-    "python-multipart>=0.0.9",
+    "python-multipart>=0.0.32",
     "sqlalchemy>=2.0.0",
     "uvicorn>=0.30.0",
 ]
