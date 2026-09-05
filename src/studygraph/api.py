@@ -193,16 +193,6 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
-@app.get("/metrics", include_in_schema=False)
-def metrics() -> PlainTextResponse:
-    if not get_metrics_enabled():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    return PlainTextResponse(
-        http_metrics.render_prometheus(),
-        media_type="text/plain; version=0.0.4",
-    )
-
-
 class DocumentResponse(BaseModel):
     id: int
     filename: str
@@ -552,6 +542,18 @@ def get_current_user(
         ) from error
 
     return CurrentUser(owner_id=owner_id)
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics(
+    _current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> PlainTextResponse:
+    if not get_metrics_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return PlainTextResponse(
+        http_metrics.render_prometheus(),
+        media_type="text/plain; version=0.0.4",
+    )
 
 
 def get_document_service(

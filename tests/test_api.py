@@ -20,6 +20,7 @@ from studygraph.api import (
 from studygraph.auth import (
     AuthenticationError,
     answer_rate_limiter,
+    create_access_token,
     login_rate_limiter,
     resolve_owner_id,
 )
@@ -391,6 +392,27 @@ def test_metrics_endpoint_is_opt_in(
     assert response.status_code == 200
     assert "studygraph_http_requests_total" in response.text
     assert 'route="/health"' in response.text
+
+
+def test_metrics_requires_bearer_auth_when_authentication_is_required(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STUDYGRAPH_METRICS_ENABLED", "true")
+    monkeypatch.setenv("STUDYGRAPH_REQUIRE_AUTH_TOKEN", "true")
+    monkeypatch.setenv("STUDYGRAPH_AUTH_SECRET", "s" * 32)
+
+    unauthorized_response = client.get("/metrics")
+    authorized_response = client.get(
+        "/metrics",
+        headers={
+            "Authorization": "Bearer "
+            + create_access_token("metrics-reader", secret="s" * 32),
+        },
+    )
+
+    assert unauthorized_response.status_code == 401
+    assert authorized_response.status_code == 200
 
 
 def test_frontend_static_assets_are_served(client: TestClient) -> None:

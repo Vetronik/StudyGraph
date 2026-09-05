@@ -44,7 +44,9 @@ learning progress in one workspace. 🚀
   limits to control privacy exposure and provider costs.
 - Optional Prometheus-compatible HTTP metrics are available at `/metrics` when
   `STUDYGRAPH_METRICS_ENABLED=true`; the secure Compose profile enables them by
-  default for internal monitoring.
+  default for internal monitoring. When bearer authentication is enabled,
+  `/metrics` also requires a valid bearer token; use a dedicated monitoring
+  account for scraping.
 - OCR support exists as an opt-in fallback, but still needs production hardening and
   broader language coverage.
 
