@@ -1,9 +1,14 @@
 services:
   postgres:
     ports: !reset []
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER for secure deployment}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for secure deployment}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB for secure deployment}
 
   api:
     environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER for secure deployment}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for secure deployment}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB for secure deployment}
       STUDYGRAPH_AUTH_SECRET: ${STUDYGRAPH_AUTH_SECRET:?Set STUDYGRAPH_AUTH_SECRET to a strong secret}
       STUDYGRAPH_REQUIRE_AUTH_TOKEN: "true"
       STUDYGRAPH_REQUIRE_USER_HEADER: "false"
@@ -12,4 +17,5 @@ services:
 
   worker:
     environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER for secure deployment}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for secure deployment}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB for secure deployment}
       STUDYGRAPH_AUTH_SECRET: ${STUDYGRAPH_AUTH_SECRET:?Set STUDYGRAPH_AUTH_SECRET to a strong secret}

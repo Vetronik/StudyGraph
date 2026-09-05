@@ -155,12 +155,17 @@ use the secure override:
 
 ```powershell
 $env:STUDYGRAPH_AUTH_SECRET = "replace-with-a-random-secret-at-least-32-characters"
+$env:POSTGRES_USER = "studygraph_production"
+$env:POSTGRES_PASSWORD = "replace-with-a-url-safe-random-password"
+$env:POSTGRES_DB = "studygraph_production"
 docker compose -f docker-compose.yml -f docker-compose.secure.yml up --build -d
 ```
 
 The secure override requires bearer tokens and disables the development owner
 header. `STUDYGRAPH_AUTH_SECRET` must be explicitly set when bearer tokens are
 required; the development fallback secret is rejected in that mode. The
+secure override also requires explicit PostgreSQL credentials; use a URL-safe
+password because it is embedded in `DATABASE_URL`. The
 default compose command remains intentionally convenient for local single-user
 development. The API and worker containers run as an unprivileged user.
 The secure override also keeps PostgreSQL private to the Docker network.
