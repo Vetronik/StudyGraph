@@ -13,6 +13,9 @@ const elements = {
   collectionForm: document.querySelector("#collection-form"),
   collectionList: document.querySelector("#collection-list"),
   collectionName: document.querySelector("#collection-name"),
+  askForm: document.querySelector("#ask-form"),
+  askInput: document.querySelector("#ask-input"),
+  askOutput: document.querySelector("#ask-output"),
   authForm: document.querySelector("#auth-form"),
   authUsername: document.querySelector("#auth-username"),
   authPassword: document.querySelector("#auth-password"),
@@ -658,6 +661,35 @@ async function handleSearch(event) {
   }
 }
 
+async function handleAsk(event) {
+  event.preventDefault();
+  const query = elements.askInput.value.trim();
+  if (!query) return;
+
+  elements.askOutput.className = "ask-output empty-state";
+  elements.askOutput.textContent = "Thinking…";
+  try {
+    const result = await requestJson("/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, max_chunks: 5 }),
+    });
+    const answer = createTextElement("p", "learning-text", result.answer);
+    const sources = createTextElement(
+      "div",
+      "item-meta",
+      result.sources.length
+        ? `Sources: ${result.sources.map((source) => `${source.document_filename} p.${source.page_number}`).join(" · ")}`
+        : "No sources found",
+    );
+    elements.askOutput.className = "ask-output";
+    elements.askOutput.replaceChildren(answer, sources);
+  } catch (error) {
+    elements.askOutput.className = "ask-output empty-state";
+    elements.askOutput.textContent = getErrorMessage(error);
+  }
+}
+
 function renderSearchResults(results) {
   elements.searchResults.replaceChildren();
 
@@ -707,6 +739,7 @@ async function handleDelete() {
 
 elements.uploadForm.addEventListener("submit", handleUpload);
 elements.collectionForm.addEventListener("submit", handleCreateCollection);
+elements.askForm.addEventListener("submit", handleAsk);
 elements.authForm.addEventListener("submit", handleLogin);
 elements.registerButton.addEventListener("click", handleRegister);
 elements.logoutButton.addEventListener("click", handleLogout);

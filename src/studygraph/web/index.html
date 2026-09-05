@@ -79,6 +79,14 @@
             <button class="secondary-button" type="submit">Search</button>
           </form>
           <div id="search-results" class="result-list"></div>
+          <div class="ask-section">
+            <h3>Ask your documents</h3>
+            <form id="ask-form" class="search-form">
+              <input id="ask-input" type="text" maxlength="200" placeholder="Ask a source-grounded question" required>
+              <button class="primary-button" type="submit">Ask</button>
+            </form>
+            <div id="ask-output" class="ask-output empty-state">No question asked yet</div>
+          </div>
         </section>
 
         <section class="panel documents-panel" aria-labelledby="documents-title">
