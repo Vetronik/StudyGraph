@@ -225,15 +225,25 @@ Create a logical PostgreSQL backup while the Compose stack is running:
 .\docker\postgres\backup.ps1
 ```
 
-The generated SQL file is written to the ignored `backups/` directory. Store
-copies outside the host and test restoring them into a separate database; a
-production deployment should additionally use encrypted offsite retention and
-scheduled execution.
+The generated SQL file and a ZIP archive of `data/documents` are written to the
+ignored `backups/` directory. Store both copies outside the host and test
+restoring them into a separate database and document directory; a production
+deployment should additionally use encrypted offsite retention and scheduled
+execution.
 
 Restore only after verifying the target database and the backup contents:
 
 ```powershell
 .\docker\postgres\restore.ps1 -BackupPath .\backups\studygraph-20260905-120000.sql -ConfirmRestore
+```
+
+Restore the uploaded PDFs too by passing the matching archive:
+
+```powershell
+.\docker\postgres\restore.ps1 `
+  -BackupPath .\backups\studygraph-20260905-120000.sql `
+  -DocumentsArchivePath .\backups\studygraph-20260905-120000-documents.zip `
+  -ConfirmRestore
 ```
 
 The explicit confirmation switch prevents accidental restores during routine

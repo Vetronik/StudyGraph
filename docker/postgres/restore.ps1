@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$BackupPath,
+    [string]$DocumentsArchivePath,
+    [string]$DocumentDirectory = "data/documents",
     [switch]$ConfirmRestore
 )
 
@@ -18,6 +20,13 @@ Get-Content -LiteralPath $resolvedBackupPath -Raw |
 
 if ($LASTEXITCODE -ne 0) {
     throw "PostgreSQL restore failed."
+}
+
+if ($DocumentsArchivePath) {
+    $resolvedDocumentsArchivePath = (Resolve-Path -LiteralPath $DocumentsArchivePath -ErrorAction Stop).Path
+    New-Item -ItemType Directory -Force -Path $DocumentDirectory | Out-Null
+    Write-Host "Restoring document files from $resolvedDocumentsArchivePath"
+    Expand-Archive -LiteralPath $resolvedDocumentsArchivePath -DestinationPath (Split-Path -Parent $DocumentDirectory) -Force
 }
 
 Write-Host "Restore completed."
