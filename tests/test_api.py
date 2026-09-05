@@ -356,6 +356,27 @@ def test_responses_include_security_headers(client: TestClient) -> None:
     )
 
 
+def test_request_id_is_preserved_and_logged(
+    client: TestClient,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level("INFO", logger="studygraph.api")
+
+    response = client.get("/health", headers={"X-Request-ID": "request-123"})
+
+    assert response.headers["x-request-id"] == "request-123"
+    assert "http_request_completed" in caplog.text
+    assert "request_id=request-123" in caplog.text
+
+
+def test_invalid_request_id_is_replaced(client: TestClient) -> None:
+    response = client.get("/health", headers={"X-Request-ID": "bad value"})
+
+    generated_request_id = response.headers["x-request-id"]
+    assert generated_request_id != "bad value"
+    assert len(generated_request_id) == 32
+
+
 def test_frontend_static_assets_are_served(client: TestClient) -> None:
     response = client.get("/static/app.js")
 

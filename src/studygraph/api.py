@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import shutil
+import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -111,6 +112,10 @@ PDF_CONTENT_TYPES = {
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
 DocumentProcessor = Callable[[int, Path], None]
+REQUEST_ID_HEADER = "X-Request-ID"
+REQUEST_ID_ALLOWED_CHARACTERS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+)
 
 
 @asynccontextmanager
@@ -132,13 +137,42 @@ app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
+    request_id = request.headers.get(REQUEST_ID_HEADER, "")
+    if not (
+        0 < len(request_id) <= 64
+        and all(character in REQUEST_ID_ALLOWED_CHARACTERS for character in request_id)
+    ):
+        request_id = uuid4().hex
+    request.state.request_id = request_id
+    started_at = time.perf_counter()
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception(
+            "http_request_failed method=%s path=%s request_id=%s",
+            request.method,
+            request.url.path,
+            request_id,
+        )
+        raise
+
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
     response.headers.setdefault(
         "Permissions-Policy",
         "camera=(), geolocation=(), microphone=()",
+    )
+    response.headers[REQUEST_ID_HEADER] = request_id
+    logger.info(
+        "http_request_completed method=%s path=%s status_code=%s "
+        "duration_ms=%.2f request_id=%s",
+        request.method,
+        request.url.path,
+        response.status_code,
+        (time.perf_counter() - started_at) * 1000,
+        request_id,
     )
     return response
 
