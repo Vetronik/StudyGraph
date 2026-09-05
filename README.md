@@ -156,8 +156,10 @@ docker compose -f docker-compose.yml -f docker-compose.secure.yml up --build -d
 ```
 
 The secure override requires bearer tokens and disables the development owner
-header. The default compose command remains intentionally convenient for local
-single-user development.
+header. `STUDYGRAPH_AUTH_SECRET` must be explicitly set when bearer tokens are
+required; the development fallback secret is rejected in that mode. The
+default compose command remains intentionally convenient for local single-user
+development.
 
 The current application processes an upload as a background task in the API
 container. The separate CLI worker remains available for recovery and manual

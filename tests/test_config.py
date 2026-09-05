@@ -1,8 +1,11 @@
 import pytest
 
 from studygraph.config import (
+    AUTH_SECRET_ENV_VAR,
     LOG_LEVEL_ENV_VAR,
+    REQUIRE_AUTH_TOKEN_ENV_VAR,
     ConfigurationError,
+    get_auth_secret,
     get_log_level,
     get_max_processing_attempts,
 )
@@ -39,3 +42,22 @@ def test_max_processing_attempts_can_be_configured(
     monkeypatch.setenv("STUDYGRAPH_MAX_PROCESSING_ATTEMPTS", "4")
 
     assert get_max_processing_attempts() == 4
+
+
+def test_auth_secret_is_required_when_bearer_auth_is_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(AUTH_SECRET_ENV_VAR, raising=False)
+    monkeypatch.setenv(REQUIRE_AUTH_TOKEN_ENV_VAR, "true")
+
+    with pytest.raises(ConfigurationError, match=AUTH_SECRET_ENV_VAR):
+        get_auth_secret()
+
+
+def test_auth_secret_defaults_for_local_development(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(AUTH_SECRET_ENV_VAR, raising=False)
+    monkeypatch.setenv(REQUIRE_AUTH_TOKEN_ENV_VAR, "false")
+
+    assert len(get_auth_secret()) >= 32

@@ -75,7 +75,14 @@ def get_document_storage_dir() -> str:
 
 
 def get_auth_secret() -> str:
-    value = os.environ.get(AUTH_SECRET_ENV_VAR, DEFAULT_AUTH_SECRET)
+    configured_value = os.environ.get(AUTH_SECRET_ENV_VAR)
+    if get_require_auth_token() and not configured_value:
+        raise ConfigurationError(
+            f"{AUTH_SECRET_ENV_VAR} must be explicitly configured when "
+            f"{REQUIRE_AUTH_TOKEN_ENV_VAR} is enabled."
+        )
+
+    value = configured_value or DEFAULT_AUTH_SECRET
     if len(value) < 32:
         raise ConfigurationError(
             f"{AUTH_SECRET_ENV_VAR} must contain at least 32 characters."
