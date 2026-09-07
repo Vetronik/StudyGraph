@@ -36,7 +36,8 @@ learning progress in one workspace. 🚀
 
 - The legacy `X-StudyGraph-User` header is only a local development identity mechanism.
 - Authentication currently uses application-managed accounts and signed bearer tokens;
-  a production identity provider is not integrated yet.
+  a production identity provider is not integrated yet. When PostgreSQL is
+  configured, bearer sessions are persisted and can be revoked through logout.
 - The current embedding provider is deterministic and intended for tests only.
 - The default answer provider is offline and extractive; an OpenAI-compatible LLM
   adapter is optional and must be explicitly enabled with a key and endpoint.
@@ -286,6 +287,7 @@ Useful endpoints:
 | `GET` | `/health` | Check API and database configuration |
 | `POST` | `/auth/register` | Register a user account |
 | `POST` | `/auth/login` | Obtain a bearer token |
+| `POST` | `/auth/logout` | Revoke the current bearer session |
 | `POST` | `/documents` | Validate and queue a PDF upload |
 | `GET` | `/documents` | List documents for the current development owner |
 | `GET` | `/documents/{id}` | Read document status and metadata |

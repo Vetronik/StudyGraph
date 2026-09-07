@@ -146,12 +146,20 @@ async function handleRegister() {
   }
 }
 
-function handleLogout() {
-  state.accessToken = "";
-  sessionStorage.removeItem("studygraph.accessToken");
-  updateAuthControls();
-  clearSelection();
-  refreshWorkspace().catch(() => undefined);
+async function handleLogout() {
+  try {
+    if (state.accessToken) {
+      await requestNoContent("/auth/logout", { method: "POST" });
+    }
+  } catch (error) {
+    showNotice(getErrorMessage(error), "error");
+  } finally {
+    state.accessToken = "";
+    sessionStorage.removeItem("studygraph.accessToken");
+    updateAuthControls();
+    clearSelection();
+    refreshWorkspace().catch(() => undefined);
+  }
 }
 
 function getErrorMessage(error) {

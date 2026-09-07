@@ -5,6 +5,7 @@ from studygraph.auth import (
     LoginRateLimiter,
     create_access_token,
     decode_access_token,
+    decode_access_token_claims,
     hash_password,
     resolve_owner_id,
     verify_password,
@@ -65,6 +66,15 @@ def test_access_token_round_trip() -> None:
     token = create_access_token("alice", secret="s" * 32)
 
     assert decode_access_token(token, secret="s" * 32) == "alice"
+
+
+def test_access_token_contains_a_session_id() -> None:
+    token = create_access_token("alice", secret="s" * 32)
+
+    claims = decode_access_token_claims(token, secret="s" * 32)
+
+    assert claims.owner_id == "alice"
+    assert claims.token_id
 
 
 def test_access_token_rejects_wrong_secret() -> None:

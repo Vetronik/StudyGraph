@@ -734,6 +734,7 @@ def test_auth_api_registers_and_logs_in_user(
             return user
 
     monkeypatch.setenv("STUDYGRAPH_REQUIRE_AUTH_TOKEN", "false")
+    monkeypatch.delenv(DATABASE_URL_ENV_VAR, raising=False)
     app.dependency_overrides[get_auth_service] = FakeAuthService
     try:
         with TestClient(app) as test_client:
@@ -751,6 +752,13 @@ def test_auth_api_registers_and_logs_in_user(
                     "password": "correct horse battery staple",
                 },
             )
+            logout_response = test_client.post(
+                "/auth/logout",
+                headers={
+                    "Authorization": "Bearer "
+                    + login_response.json()["access_token"],
+                },
+            )
     finally:
         app.dependency_overrides.clear()
 
@@ -764,6 +772,7 @@ def test_auth_api_registers_and_logs_in_user(
     assert login_response.json()["token_type"] == "bearer"
     assert login_response.json()["expires_in"] == 3600
     assert isinstance(login_response.json()["access_token"], str)
+    assert logout_response.status_code == 204
 
 
 def test_auth_api_throttles_repeated_failed_logins(

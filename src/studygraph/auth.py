@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import hashlib
 import hmac
@@ -120,10 +122,17 @@ def create_access_token(
     *,
     secret: str,
     lifetime_seconds: int = TOKEN_LIFETIME_SECONDS,
+    token_id: str | None = None,
 ) -> str:
     now = int(time.time())
+    token_id = token_id or create_token_id()
     header = {"alg": "HS256", "typ": "JWT"}
-    payload = {"sub": owner_id, "iat": now, "exp": now + lifetime_seconds}
+    payload = {
+        "sub": owner_id,
+        "iat": now,
+        "exp": now + lifetime_seconds,
+        "jti": token_id,
+    }
     encoded_header = _encode_json(header)
     encoded_payload = _encode_json(payload)
     signing_input = f"{encoded_header}.{encoded_payload}".encode("ascii")
@@ -131,7 +140,15 @@ def create_access_token(
     return f"{encoded_header}.{encoded_payload}.{_encode_bytes(signature.digest())}"
 
 
-def decode_access_token(token: str, *, secret: str) -> str:
+def create_token_id() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def decode_access_token_claims(
+    token: str,
+    *,
+    secret: str,
+) -> AccessTokenClaims:
     try:
         encoded_header, encoded_payload, encoded_signature = token.split(".")
         signing_input = f"{encoded_header}.{encoded_payload}".encode("ascii")
@@ -150,11 +167,20 @@ def decode_access_token(token: str, *, secret: str) -> str:
             raise AuthenticationError("Invalid access token.")
         if not isinstance(payload.get("sub"), str) or not payload["sub"]:
             raise AuthenticationError("Invalid access token.")
+        if not isinstance(payload.get("jti"), str) or not payload["jti"]:
+            raise AuthenticationError("Invalid access token.")
         if int(payload.get("exp", 0)) <= int(time.time()):
             raise AuthenticationError("Access token has expired.")
-        return resolve_owner_id(payload["sub"], require_header=True)
+        return AccessTokenClaims(
+            owner_id=resolve_owner_id(payload["sub"], require_header=True),
+            token_id=payload["jti"],
+        )
     except (AuthenticationError, ValueError, TypeError, KeyError, json.JSONDecodeError):
         raise AuthenticationError("Invalid access token.") from None
+
+
+def decode_access_token(token: str, *, secret: str) -> str:
+    return decode_access_token_claims(token, secret=secret).owner_id
 
 
 def _encode_bytes(value: bytes) -> str:
@@ -174,6 +200,13 @@ def _decode_bytes(value: str) -> bytes:
 @dataclass(frozen=True)
 class CurrentUser:
     owner_id: str
+    token_id: str | None = None
+
+
+@dataclass(frozen=True)
+class AccessTokenClaims:
+    owner_id: str
+    token_id: str
 
 
 def resolve_owner_id(

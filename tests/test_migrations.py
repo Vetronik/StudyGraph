@@ -24,6 +24,9 @@ def test_alembic_migrations_generate_document_schema_sql() -> None:
     assert "CREATE TABLE users" in result.stdout
     assert "password_hash" in result.stdout
     assert "UNIQUE (username)" in result.stdout
+    assert "CREATE TABLE auth_sessions" in result.stdout
+    assert "expires_at" in result.stdout
+    assert "ix_auth_sessions_expires_at" in result.stdout
     assert "CREATE TABLE documents" in result.stdout
     assert "extracted_text" in result.stdout
     assert "file_size_bytes" in result.stdout

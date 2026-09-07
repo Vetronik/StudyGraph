@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Annotated
@@ -34,11 +34,13 @@ from sqlalchemy.orm import Session
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from studygraph.auth import (
+    AccessTokenClaims,
     AuthenticationError,
     CurrentUser,
     answer_rate_limiter,
     create_access_token,
-    decode_access_token,
+    create_token_id,
+    decode_access_token_claims,
     login_rate_limiter,
     resolve_owner_id,
 )
@@ -46,6 +48,10 @@ from studygraph.auth_service import (
     AuthService,
     InvalidCredentialsError,
     UserAlreadyExistsError,
+)
+from studygraph.auth_session_repository import (
+    AuthSessionRepository,
+    AuthSessionRepositoryError,
 )
 from studygraph.collection_repository import (
     CollectionNameConflictError,
@@ -74,7 +80,7 @@ from studygraph.config import (
     get_token_lifetime_seconds,
     is_database_configured,
 )
-from studygraph.database import get_session
+from studygraph.database import get_session, get_session_factory
 from studygraph.document_model import Document, DocumentChunk, LearningProgress
 from studygraph.document_processing import DocumentProcessingStateError
 from studygraph.document_repository import DocumentRepository
@@ -510,10 +516,13 @@ def get_current_user(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authorization must use a Bearer token.",
-            )
+        )
         try:
+            claims = decode_access_token_claims(token, secret=get_auth_secret())
+            _validate_persistent_session(claims)
             return CurrentUser(
-                owner_id=decode_access_token(token, secret=get_auth_secret()),
+                owner_id=claims.owner_id,
+                token_id=claims.token_id,
             )
         except AuthenticationError as error:
             raise HTTPException(
@@ -544,6 +553,29 @@ def get_current_user(
         ) from error
 
     return CurrentUser(owner_id=owner_id)
+
+
+def _validate_persistent_session(claims: AccessTokenClaims) -> None:
+    if not is_database_configured():
+        return
+
+    try:
+        with get_session_factory()() as session:
+            is_active = AuthSessionRepository(session).is_active(
+                token_id=claims.token_id,
+                owner_id=claims.owner_id,
+            )
+    except AuthSessionRepositoryError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication session store is unavailable.",
+        ) from error
+
+    if not is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access token has been revoked or expired.",
+        )
 
 
 @app.get("/metrics", include_in_schema=False)
@@ -731,15 +763,53 @@ def login_user(
 
     login_rate_limiter.reset(client_key)
     lifetime_seconds = get_token_lifetime_seconds()
+    token_id = create_token_id()
+    if is_database_configured():
+        try:
+            with get_session_factory()() as session:
+                AuthSessionRepository(session).create(
+                    token_id=token_id,
+                    owner_id=username,
+                    expires_at=datetime.now(UTC) + timedelta(seconds=lifetime_seconds),
+                )
+        except AuthSessionRepositoryError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Could not create authentication session.",
+            ) from error
     return TokenResponse(
         access_token=create_access_token(
             username,
             secret=get_auth_secret(),
             lifetime_seconds=lifetime_seconds,
+            token_id=token_id,
         ),
         token_type="bearer",
         expires_in=lifetime_seconds,
     )
+
+
+@app.post(
+    "/auth/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+def logout_user(
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> Response:
+    if current_user.token_id is not None and is_database_configured():
+        try:
+            with get_session_factory()() as session:
+                AuthSessionRepository(session).revoke(
+                    token_id=current_user.token_id,
+                    owner_id=current_user.owner_id,
+                )
+        except AuthSessionRepositoryError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Could not revoke authentication session.",
+            ) from error
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 async def _save_upload_to_temporary_pdf(
