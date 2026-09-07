@@ -560,6 +560,7 @@ def test_create_document_stores_valid_pdf(
         "file_size_bytes": pdf_path.stat().st_size,
         "page_count": 0,
         "character_count": 0,
+        "extraction_method": "text",
         "status": "pending",
         "processing_error": None,
         "text_preview": "",

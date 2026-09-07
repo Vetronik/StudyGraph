@@ -22,6 +22,7 @@ class ExtractedPdfDocument:
     text: str
     page_count: int
     pages: tuple[ExtractedPdfPage, ...] = ()
+    extraction_method: str = "text"
 
 
 def extract_pdf_document(pdf_path: Path) -> ExtractedPdfDocument:
@@ -65,6 +66,9 @@ def extract_pdf_document(pdf_path: Path) -> ExtractedPdfDocument:
             pdf_path,
             page_count=page_count,
         )
+        extraction_method = "ocr"
+    else:
+        extraction_method = "text"
 
     if not extracted_text:
         raise PdfTextExtractionError(
@@ -75,6 +79,7 @@ def extract_pdf_document(pdf_path: Path) -> ExtractedPdfDocument:
         text=extracted_text,
         page_count=page_count,
         pages=tuple(pages),
+        extraction_method=extraction_method,
     )
 
 

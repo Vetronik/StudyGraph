@@ -51,7 +51,8 @@ learning progress in one workspace. 🚀
   `/metrics` also requires a valid bearer token; use a dedicated monitoring
   account for scraping.
 - OCR support exists as an opt-in fallback, but still needs production hardening and
-  broader language coverage.
+  broader language coverage. Processed documents expose whether text or OCR
+  produced their content through `extraction_method`.
 
 ## Architecture 🧱
 

@@ -207,6 +207,7 @@ class DocumentResponse(BaseModel):
     file_size_bytes: int
     page_count: int
     character_count: int
+    extraction_method: str
     status: str
     processing_error: str | None
     text_preview: str
@@ -443,6 +444,7 @@ def _build_document_response(document: Document) -> DocumentResponse:
         file_size_bytes=document.file_size_bytes,
         page_count=document.page_count,
         character_count=document.character_count,
+        extraction_method=getattr(document, "extraction_method", "text") or "text",
         status=document.status,
         processing_error=document.processing_error,
         text_preview=_build_text_preview(document.extracted_text),

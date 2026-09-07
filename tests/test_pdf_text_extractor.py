@@ -51,6 +51,7 @@ def test_extract_pdf_document_returns_page_count_from_valid_pdf(
     assert len(document.pages) == 1
     assert document.pages[0].page_number == 1
     assert document.pages[0].text == "StudyGraph extracts text"
+    assert document.extraction_method == "text"
 
 
 def test_extract_text_from_pdf_raises_when_pdf_has_no_text(

@@ -78,6 +78,12 @@ class Document(Base):
     page_count: Mapped[int] = mapped_column(Integer, nullable=False)
     character_count: Mapped[int] = mapped_column(Integer, nullable=False)
     extracted_text: Mapped[str] = mapped_column(Text, nullable=False)
+    extraction_method: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="text",
+        server_default="text",
+    )
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,

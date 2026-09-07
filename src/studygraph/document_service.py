@@ -245,6 +245,7 @@ class DocumentService:
             page_count=extracted_document.page_count,
             character_count=len(extracted_document.text),
             extracted_text=extracted_document.text,
+            extraction_method=extracted_document.extraction_method,
             status=DOCUMENT_STATUS_PROCESSED,
             processing_error=None,
             source_path=source_path,
@@ -286,6 +287,7 @@ class DocumentService:
         document.page_count = extracted_document.page_count
         document.character_count = character_count
         document.extracted_text = extracted_document.text
+        document.extraction_method = extracted_document.extraction_method
         document.status = DOCUMENT_STATUS_PROCESSED
         document.processing_error = None
         document.chunks = _build_document_chunks(

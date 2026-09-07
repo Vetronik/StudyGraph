@@ -35,6 +35,7 @@ def test_alembic_migrations_generate_document_schema_sql() -> None:
     assert "processing_attempts" in result.stdout
     assert "content_hash" in result.stdout
     assert "uq_documents_owner_content_hash" in result.stdout
+    assert "extraction_method" in result.stdout
     assert "status" in result.stdout
     assert "ix_documents_owner_id" in result.stdout
     assert "ix_document_chunks_text_fts" in result.stdout
