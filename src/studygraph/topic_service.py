@@ -98,10 +98,12 @@ def _is_metadata_line(line: str) -> bool:
             "vorlesungsfolien",
             "lecture slides",
             "letzte anderung",
+            "letzte",
             "universitat",
             "university",
             "ects",
             "ac-tu-inf",
+            "ac-tu-no-text",
         )
     ) or bool(re.search(r"\b(?:vu|ue|ss|ws)\s*\d", folded)) or bool(
         re.search(r"\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b", line)
@@ -109,11 +111,29 @@ def _is_metadata_line(line: str) -> bool:
 
 
 def _looks_like_topic(line: str) -> bool:
-    if len(line) < 3 or len(line) > 100 or len(line.split()) > 12:
+    folded = _fold(line)
+    words = line.split()
+    if len(line) < 3 or len(line) > 100 or len(words) > 8:
         return False
     if line.startswith(("http://", "https://")):
         return False
-    if line[-1:] in ".,;:!?":
+    if line[-1:] in ".,;:!?" or "=" in line:
+        return False
+    if ":" in line and len(words) > 5:
+        return False
+    if any(
+        marker in f" {folded} "
+        for marker in (
+            " ist ",
+            " sind ",
+            " werden ",
+            " verwendet ",
+            " besucht ",
+            " gilt ",
+            " in dieser ",
+            " bei bestimmten ",
+        )
+    ):
         return False
     return any(character.isalpha() for character in line)
 
