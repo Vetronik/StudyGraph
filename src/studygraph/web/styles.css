@@ -279,6 +279,27 @@ h2 {
   background: #f8fafc;
 }
 
+.answer-content {
+  line-height: 1.6;
+}
+
+.answer-paragraph {
+  margin: 0 0 10px;
+  white-space: pre-wrap;
+}
+
+.answer-spacer {
+  height: 6px;
+}
+
+.answer-code {
+  overflow-x: auto;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--background);
+  white-space: pre-wrap;
+}
+
 .primary-button {
   background: var(--accent);
   color: #ffffff;

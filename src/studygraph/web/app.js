@@ -218,6 +218,38 @@ function createTextElement(tagName, className, text) {
   return element;
 }
 
+function renderAnswer(text) {
+  const container = document.createElement("div");
+  container.className = "answer-content";
+  let codeBlock = null;
+
+  for (const line of text.split("\n")) {
+    if (line.trim().startsWith("```")) {
+      if (codeBlock) {
+        container.append(codeBlock);
+        codeBlock = null;
+      } else {
+        codeBlock = document.createElement("pre");
+        codeBlock.className = "answer-code";
+      }
+      continue;
+    }
+
+    if (codeBlock) {
+      codeBlock.textContent += `${line}\n`;
+    } else if (line.trim()) {
+      container.append(createTextElement("p", "answer-paragraph", line));
+    } else {
+      container.append(createTextElement("div", "answer-spacer", ""));
+    }
+  }
+
+  if (codeBlock) {
+    container.append(codeBlock);
+  }
+  return container;
+}
+
 async function refreshHealth() {
   try {
     const health = await requestJson("/health");
@@ -765,7 +797,7 @@ async function handleAsk(event) {
           : { collection_id: state.selectedCollectionId }),
       }),
     });
-    const answer = createTextElement("p", "learning-text", result.answer);
+    const answer = renderAnswer(result.answer);
     const sources = createTextElement(
       "div",
       "item-meta",

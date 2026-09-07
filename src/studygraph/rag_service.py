@@ -27,8 +27,24 @@ class RAGAnswer:
     sources: list[RetrievalSource]
 
 
+ANSWER_SYSTEM_PROMPT = (
+    "You are StudyGraph, an expert university tutor for computer science and "
+    "mathematics lecture slides. Answer only from the supplied context and do "
+    "not invent missing facts. Match the language of the question; when the "
+    "question is German, answer in correct German with umlauts such as "
+    "\u00e4, \u00f6, \u00fc "
+    "and \u00df. Explain definitions, assumptions, algorithms, proofs, formulas, "
+    "examples, and time or space complexity when they are supported by the "
+    "context. Preserve mathematical notation clearly using Unicode symbols or "
+    "short LaTeX-style expressions. Structure the answer with short headings, "
+    "bullet points, and code blocks where useful. Cite every important claim "
+    "using [source N]. If the context does not contain the answer, say that "
+    "clearly instead of guessing."
+)
+
+
 class LocalExtractiveAnswerProvider:
-    """Offline answer provider that always keeps source citations visible."""
+    """Offline CS/math fallback that keeps original source formatting visible."""
 
     def answer(self, *, query: str, context: RetrievalContext) -> str:
         if not context.sources:
@@ -84,9 +100,7 @@ class OpenAICompatibleAnswerProvider:
                     {
                         "role": "system",
                         "content": (
-                            "Answer only from the supplied context. Cite supporting "
-                            "material using [source N]. If the context does not "
-                            "contain the answer, say that clearly."
+                            ANSWER_SYSTEM_PROMPT
                         ),
                     },
                     {
@@ -97,7 +111,8 @@ class OpenAICompatibleAnswerProvider:
                         ),
                     },
                 ],
-            }
+            },
+            ensure_ascii=False,
         ).encode("utf-8")
         request = urllib.request.Request(
             self._api_url,

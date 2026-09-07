@@ -68,15 +68,18 @@ def test_openai_compatible_answer_provider_sends_grounded_prompt(
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    answer = provider.answer(query="What is the answer?", context=_context())
+    answer = provider.answer(query="Was ist die L\u00f6sung?", context=_context())
 
     request = captured_requests[0]
     payload = json.loads(request.data)
+    assert "L\u00f6sung".encode("utf-8") in request.data
     assert answer == "42 [source 1]"
     assert payload["model"] == "test-model"
     assert payload["max_tokens"] == 25
     assert len(payload["messages"][1]["content"]) < 60
     assert "[source N]" in payload["messages"][0]["content"]
+    assert "\u00e4, \u00f6, \u00fc and \u00df" in payload["messages"][0]["content"]
+    assert "L\u00f6sung" in payload["messages"][1]["content"]
 
 
 def test_remote_answer_provider_requires_api_key(
