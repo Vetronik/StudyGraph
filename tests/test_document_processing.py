@@ -103,6 +103,7 @@ def test_process_pending_document_processes_valid_pdf(
     write_pdf_with_text: Callable[[Path, str], None],
 ) -> None:
     service = RecordingDocumentService()
+    progress_updates: list[tuple[str, int]] = []
     pdf_path = tmp_path / "lecture.pdf"
     write_pdf_with_text(pdf_path, "StudyGraph extracts text")
     caplog.set_level(logging.INFO, logger="studygraph.document_processing")
@@ -115,6 +116,9 @@ def test_process_pending_document_processes_valid_pdf(
             max_pages=10,
             max_characters=1000,
         ),
+        progress_callback=lambda phase, progress: progress_updates.append(
+            (phase, progress)
+        ),
     )
 
     assert document.id == 7
@@ -122,6 +126,7 @@ def test_process_pending_document_processes_valid_pdf(
     assert service.processed_document_id == 7
     assert service.claimed_document_id == 7
     assert service.failed_document_id is None
+    assert progress_updates == [("extracting", 10), ("indexing", 60)]
     assert "document_processing_started document_id=7" in caplog.text
     assert "document_processing_completed document_id=7" in caplog.text
 
