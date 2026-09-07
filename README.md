@@ -42,7 +42,9 @@ learning progress in one workspace. 🚀
 - The default answer provider is offline and extractive; an OpenAI-compatible LLM
   adapter is optional and must be explicitly enabled with a key and endpoint.
 - Remote answers are bounded by configurable context-character and output-token
-  limits to control privacy exposure and provider costs.
+  limits to control privacy exposure and provider costs. The additional
+  `STUDYGRAPH_ANSWER_MAX_OUTPUT_CHARACTERS` limit rejects unexpectedly large
+  provider responses before they are returned to the client.
 - Optional Prometheus-compatible HTTP metrics are available at `/metrics` when
   `STUDYGRAPH_METRICS_ENABLED=true`; the secure Compose profile enables them by
   default for internal monitoring. When bearer authentication is enabled,

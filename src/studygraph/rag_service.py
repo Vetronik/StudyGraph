@@ -62,6 +62,7 @@ class OpenAICompatibleAnswerProvider:
         timeout_seconds: int,
         max_context_characters: int,
         max_output_tokens: int,
+        max_output_characters: int,
     ) -> None:
         if not api_key:
             raise ValueError("answer api_key must not be empty.")
@@ -71,6 +72,7 @@ class OpenAICompatibleAnswerProvider:
         self._timeout_seconds = timeout_seconds
         self._max_context_characters = max_context_characters
         self._max_output_tokens = max_output_tokens
+        self._max_output_characters = max_output_characters
 
     def answer(self, *, query: str, context: RetrievalContext) -> str:
         payload = json.dumps(
@@ -123,7 +125,10 @@ class OpenAICompatibleAnswerProvider:
             ) from error
         if not isinstance(answer, str) or not answer.strip():
             raise AnswerProviderError("Answer provider returned an empty answer.")
-        return answer.strip()
+        answer = answer.strip()
+        if len(answer) > self._max_output_characters:
+            raise AnswerProviderError("Answer provider returned an oversized answer.")
+        return answer
 
 
 def get_answer_provider() -> AnswerProviderProtocol:
@@ -132,6 +137,7 @@ def get_answer_provider() -> AnswerProviderProtocol:
         get_answer_api_key,
         get_answer_api_url,
         get_answer_max_context_characters,
+        get_answer_max_output_characters,
         get_answer_max_output_tokens,
         get_answer_model,
         get_answer_provider_name,
@@ -152,6 +158,7 @@ def get_answer_provider() -> AnswerProviderProtocol:
         timeout_seconds=get_answer_timeout_seconds(),
         max_context_characters=get_answer_max_context_characters(),
         max_output_tokens=get_answer_max_output_tokens(),
+        max_output_characters=get_answer_max_output_characters(),
     )
 
 

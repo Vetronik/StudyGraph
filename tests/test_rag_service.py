@@ -4,6 +4,7 @@ import pytest
 
 from studygraph.config import ConfigurationError
 from studygraph.rag_service import (
+    AnswerProviderError,
     LocalExtractiveAnswerProvider,
     OpenAICompatibleAnswerProvider,
     RetrievalContext,
@@ -47,6 +48,7 @@ def test_openai_compatible_answer_provider_sends_grounded_prompt(
         timeout_seconds=5,
         max_context_characters=10,
         max_output_tokens=25,
+        max_output_characters=6_000,
     )
     captured_requests: list[object] = []
 
@@ -85,3 +87,36 @@ def test_remote_answer_provider_requires_api_key(
 
     with pytest.raises(ConfigurationError, match="STUDYGRAPH_ANSWER_API_KEY"):
         get_answer_provider()
+
+
+def test_remote_answer_provider_rejects_oversized_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = OpenAICompatibleAnswerProvider(
+        api_key="test-key",
+        api_url="https://example.test/v1/chat/completions",
+        model="test-model",
+        timeout_seconds=5,
+        max_context_characters=10,
+        max_output_tokens=25,
+        max_output_characters=5,
+    )
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    def fake_urlopen(_request: object, **_kwargs: object) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "json.load",
+        lambda _response: {"choices": [{"message": {"content": "123456"}}]},
+    )
+
+    with pytest.raises(AnswerProviderError, match="oversized"):
+        provider.answer(query="What is the answer?", context=_context())
