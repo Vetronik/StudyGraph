@@ -767,7 +767,9 @@ def login_user(
     if is_database_configured():
         try:
             with get_session_factory()() as session:
-                AuthSessionRepository(session).create(
+                session_repository = AuthSessionRepository(session)
+                session_repository.purge_inactive()
+                session_repository.create(
                     token_id=token_id,
                     owner_id=username,
                     expires_at=datetime.now(UTC) + timedelta(seconds=lifetime_seconds),

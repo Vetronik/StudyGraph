@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -70,3 +70,20 @@ class AuthSessionRepository:
             raise AuthSessionRepositoryError(
                 "Could not revoke authentication session."
             ) from error
+
+    def purge_inactive(self) -> int:
+        statement = delete(AuthSession).where(
+            or_(
+                AuthSession.revoked_at.is_not(None),
+                AuthSession.expires_at <= datetime.now(UTC),
+            )
+        )
+        try:
+            result = self._session.execute(statement)
+            self._session.commit()
+        except SQLAlchemyError as error:
+            self._session.rollback()
+            raise AuthSessionRepositoryError(
+                "Could not purge inactive authentication sessions."
+            ) from error
+        return result.rowcount or 0

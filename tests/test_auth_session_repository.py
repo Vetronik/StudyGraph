@@ -67,3 +67,25 @@ def test_expired_auth_session_is_not_active(
         token_id="expired-token",
         owner_id="owner-a",
     )
+
+
+def test_purge_inactive_removes_expired_sessions(
+    database_session: tuple[Session, object],
+) -> None:
+    session, _engine = database_session
+    repository = AuthSessionRepository(session)
+
+    repository.create(
+        token_id="expired-token",
+        owner_id="owner-a",
+        expires_at=datetime.now(UTC) - timedelta(seconds=1),
+    )
+    repository.create(
+        token_id="active-token",
+        owner_id="owner-a",
+        expires_at=datetime.now(UTC) + timedelta(minutes=5),
+    )
+
+    assert repository.purge_inactive() == 1
+    assert not repository.is_active(token_id="expired-token", owner_id="owner-a")
+    assert repository.is_active(token_id="active-token", owner_id="owner-a")
