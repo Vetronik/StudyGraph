@@ -128,6 +128,7 @@ class DocumentRepositoryProtocol(Protocol):
         limit: int,
         offset: int,
         query: str | None = None,
+        collection_id: int | None = None,
     ) -> tuple[list[Document], int]: ...
 
     def search_chunks(
@@ -447,6 +448,7 @@ class DocumentService:
         limit: int,
         offset: int,
         query: str | None = None,
+        collection_id: int | None = None,
     ) -> DocumentList:
         normalized_query = query.strip() if query else None
 
@@ -456,6 +458,7 @@ class DocumentService:
                 limit=limit,
                 offset=offset,
                 query=normalized_query,
+                collection_id=collection_id,
             )
         except DocumentRepositoryError as error:
             raise DocumentReadError("Could not load documents.") from error

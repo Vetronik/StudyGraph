@@ -136,6 +136,7 @@ class InMemoryDocumentRepository:
         limit: int,
         offset: int,
         query: str | None = None,
+        collection_id: int | None = None,
     ) -> tuple[list[Document], int]:
         documents = sorted(
             [
@@ -155,6 +156,16 @@ class InMemoryDocumentRepository:
                 if (
                     normalized_query in document.filename.lower()
                     or normalized_query in document.extracted_text.lower()
+                )
+            ]
+
+        if collection_id is not None:
+            documents = [
+                document
+                for document in documents
+                if any(
+                    collection.id == collection_id
+                    for collection in document.collections
                 )
             ]
 

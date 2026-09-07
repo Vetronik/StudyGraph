@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
-from studygraph.document_model import Base, Document, DocumentChunk
+from studygraph.document_model import Base, Collection, Document, DocumentChunk
 from studygraph.document_repository import DocumentRepository
 from studygraph.document_service import DEFAULT_OWNER_ID
 
@@ -202,6 +202,40 @@ def test_document_repository_scopes_documents_by_owner(
     assert total == 1
     assert [document.id for document in documents] == [first_document.id]
     assert repository.get_by_id(first_document.id, owner_id="owner-b") is None
+
+
+def test_document_repository_filters_documents_by_collection(
+    repository: DocumentRepository,
+) -> None:
+    collection = Collection(owner_id=DEFAULT_OWNER_ID, name="Calculus")
+    calculus_document = Document(
+        filename="calculus.pdf",
+        owner_id=DEFAULT_OWNER_ID,
+        page_count=1,
+        character_count=10,
+        extracted_text="Derivatives",
+        collections=[collection],
+    )
+    repository.add(calculus_document)
+    repository.add(
+        Document(
+            filename="history.pdf",
+            owner_id=DEFAULT_OWNER_ID,
+            page_count=1,
+            character_count=8,
+            extracted_text="Roman empire",
+        )
+    )
+
+    documents, total = repository.list_documents(
+        owner_id=DEFAULT_OWNER_ID,
+        limit=10,
+        offset=0,
+        collection_id=collection.id,
+    )
+
+    assert total == 1
+    assert [document.id for document in documents] == [calculus_document.id]
 
 
 def test_document_repository_deletes_document(

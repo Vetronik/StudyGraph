@@ -40,6 +40,7 @@ class FailingDocumentRepository:
         limit: int,
         offset: int,
         query: str | None = None,
+        collection_id: int | None = None,
     ) -> tuple[list[Document], int]:
         return [], 0
 

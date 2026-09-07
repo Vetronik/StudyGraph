@@ -1,10 +1,15 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import cast, func, or_, select, update
+from sqlalchemy import and_, cast, func, or_, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, contains_eager
 
-from studygraph.document_model import Document, DocumentChunk, LearningProgress
+from studygraph.document_model import (
+    Collection,
+    Document,
+    DocumentChunk,
+    LearningProgress,
+)
 from studygraph.embedding_service import (
     EmbeddingProviderProtocol,
     Vector,
@@ -248,6 +253,7 @@ class DocumentRepository:
         limit: int,
         offset: int,
         query: str | None = None,
+        collection_id: int | None = None,
     ) -> tuple[list[Document], int]:
         total_statement = (
             select(func.count())
@@ -270,6 +276,16 @@ class DocumentRepository:
             )
             total_statement = total_statement.where(search_filter)
             documents_statement = documents_statement.where(search_filter)
+
+        if collection_id is not None:
+            collection_filter = Document.collections.any(
+                and_(
+                    Collection.id == collection_id,
+                    Collection.owner_id == owner_id,
+                )
+            )
+            total_statement = total_statement.where(collection_filter)
+            documents_statement = documents_statement.where(collection_filter)
 
         try:
             total = self._session.scalar(total_statement) or 0

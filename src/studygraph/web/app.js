@@ -221,7 +221,10 @@ async function refreshWorkspace() {
 }
 
 async function refreshDocuments() {
-  const documentList = await requestJson("/documents?limit=100");
+  const collectionQuery = state.selectedCollectionId === null
+    ? ""
+    : `&collection_id=${state.selectedCollectionId}`;
+  const documentList = await requestJson(`/documents?limit=100${collectionQuery}`);
   state.documents = documentList.items;
   elements.documentCount.textContent = `${formatNumber(documentList.total)} stored`;
   renderDocuments();
@@ -767,21 +770,14 @@ async function handleDelete() {
 
 elements.uploadForm.addEventListener("submit", handleUpload);
 elements.collectionForm.addEventListener("submit", handleCreateCollection);
-elements.collectionFilter.addEventListener("change", () => {
+elements.collectionFilter.addEventListener("change", async () => {
   state.selectedCollectionId = elements.collectionFilter.value
     ? Number(elements.collectionFilter.value)
     : null;
-  const selectedIsVisible = state.documents.some((documentItem) =>
-    documentItem.id === state.selectedDocumentId &&
-    (state.selectedCollectionId === null || state.collections.some((collection) =>
-      collection.id === state.selectedCollectionId &&
-      collection.documents.some((item) => item.id === documentItem.id),
-    )),
-  );
-  if (state.selectedDocumentId !== null && !selectedIsVisible) {
-    clearSelection();
-  } else {
-    renderDocuments();
+  try {
+    await refreshDocuments();
+  } catch (error) {
+    showNotice(getErrorMessage(error), "error");
   }
 });
 elements.askForm.addEventListener("submit", handleAsk);

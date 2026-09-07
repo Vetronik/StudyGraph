@@ -956,12 +956,14 @@ def list_documents(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
     query: Annotated[str | None, Query(max_length=200)] = None,
+    collection_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> DocumentListResponse:
     try:
         document_list = document_service.list_documents(
             limit=limit,
             offset=offset,
             query=query,
+            collection_id=collection_id,
         )
     except DocumentReadError as error:
         raise HTTPException(
