@@ -62,6 +62,13 @@ async function requestJson(url, options = {}) {
   const response = await fetch(url, withOwnerHeader(options));
   const body = await response.json().catch(() => null);
 
+  if (response.status === 401 && state.accessToken) {
+    state.accessToken = "";
+    sessionStorage.removeItem("studygraph.accessToken");
+    updateAuthControls();
+    showNotice("Your session expired. Please sign in again.", "error");
+  }
+
   if (!response.ok) {
     throw new ApiError(response.status, body);
   }

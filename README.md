@@ -222,7 +222,8 @@ per-client request limits (`STUDYGRAPH_ANSWER_MAX_REQUESTS` within
 `STUDYGRAPH_ANSWER_RATE_WINDOW_SECONDS`); the local provider uses the same
 limit for predictable behavior. The web client keeps bearer tokens in
 `sessionStorage`, not persistent `localStorage`; users must sign in again after
-the browser session ends.
+the browser session ends. A `401 Unauthorized` response also clears the active
+browser token and asks the user to sign in again.
 Dependency update pull requests are configured through Dependabot for Python
 packages and GitHub Actions.
 
