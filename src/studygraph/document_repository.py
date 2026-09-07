@@ -186,7 +186,12 @@ class DocumentRepository:
             result = self._session.execute(
                 update(Document)
                 .where(Document.status == "processing")
-                .values(status="pending", processing_error=None)
+                .values(
+                    status="pending",
+                    processing_phase="queued",
+                    processing_progress=0,
+                    processing_error=None,
+                )
             )
             self._session.commit()
             return result.rowcount

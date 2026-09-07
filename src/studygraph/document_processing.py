@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,6 +40,7 @@ def process_pending_document(
     document_id: int,
     pdf_path: Path,
     limits: DocumentProcessingLimits,
+    progress_callback: Callable[[str, int], None] | None = None,
 ) -> Document:
     logger.info("document_processing_started document_id=%s", document_id)
 
@@ -57,7 +59,11 @@ def process_pending_document(
         else:
             logger.info("document_processing_claimed document_id=%s", document_id)
 
+        if progress_callback is not None:
+            progress_callback("extracting", 10)
         extracted_document = extract_pdf_document(pdf_path)
+        if progress_callback is not None:
+            progress_callback("indexing", 60)
         document = document_service.process_document(
             document_id,
             extracted_document=extracted_document,

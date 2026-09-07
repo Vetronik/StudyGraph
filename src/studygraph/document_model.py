@@ -90,6 +90,18 @@ class Document(Base):
         default="processed",
         server_default="processed",
     )
+    processing_phase: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="completed",
+        server_default="completed",
+    )
+    processing_progress: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=100,
+        server_default="100",
+    )
     processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     processing_attempts: Mapped[int] = mapped_column(
         Integer,

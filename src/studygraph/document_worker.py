@@ -66,6 +66,13 @@ def process_document_job(document_id: int, pdf_path: Path) -> None:
         service = DocumentService(repository, owner_id=document.owner_id)
 
         try:
+            def update_progress(phase: str, progress: int) -> None:
+                service.update_processing_progress(
+                    document_id,
+                    phase=phase,
+                    progress=progress,
+                )
+
             process_pending_document(
                 service,
                 document_id=document_id,
@@ -74,6 +81,7 @@ def process_document_job(document_id: int, pdf_path: Path) -> None:
                     max_pages=get_max_document_pages(),
                     max_characters=get_max_document_characters(),
                 ),
+                progress_callback=update_progress,
             )
         except DocumentProcessingFailed:
             logger.info(

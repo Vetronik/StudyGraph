@@ -209,6 +209,8 @@ class DocumentResponse(BaseModel):
     character_count: int
     extraction_method: str
     status: str
+    processing_phase: str
+    processing_progress: int
     processing_error: str | None
     text_preview: str
     created_at: datetime
@@ -446,6 +448,13 @@ def _build_document_response(document: Document) -> DocumentResponse:
         character_count=document.character_count,
         extraction_method=getattr(document, "extraction_method", "text") or "text",
         status=document.status,
+        processing_phase=getattr(document, "processing_phase", "completed")
+        or "completed",
+        processing_progress=(
+            100
+            if getattr(document, "processing_progress", None) is None
+            else document.processing_progress
+        ),
         processing_error=document.processing_error,
         text_preview=_build_text_preview(document.extracted_text),
         created_at=document.created_at,

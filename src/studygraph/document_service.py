@@ -222,6 +222,8 @@ class DocumentService:
             character_count=0,
             extracted_text="",
             status=DOCUMENT_STATUS_PENDING,
+            processing_phase="queued",
+            processing_progress=0,
             processing_error=None,
             source_path=source_path,
         )
@@ -260,6 +262,8 @@ class DocumentService:
             extracted_text=extracted_document.text,
             extraction_method=extracted_document.extraction_method,
             status=DOCUMENT_STATUS_PROCESSED,
+            processing_phase="completed",
+            processing_progress=100,
             processing_error=None,
             source_path=source_path,
         )
@@ -302,6 +306,8 @@ class DocumentService:
         document.extracted_text = extracted_document.text
         document.extraction_method = extracted_document.extraction_method
         document.status = DOCUMENT_STATUS_PROCESSED
+        document.processing_phase = "completed"
+        document.processing_progress = 100
         document.processing_error = None
         document.chunks = _build_document_chunks(
             extracted_document,
@@ -324,6 +330,23 @@ class DocumentService:
                 "Could not claim document for processing."
             ) from error
 
+    def update_processing_progress(
+        self,
+        document_id: int,
+        *,
+        phase: str,
+        progress: int,
+    ) -> Document:
+        document = self.get_document(document_id)
+        document.processing_phase = phase
+        document.processing_progress = max(0, min(100, progress))
+        try:
+            return self._repository.update(document)
+        except DocumentRepositoryError as error:
+            raise DocumentStorageError(
+                "Could not save document processing progress."
+            ) from error
+
     def mark_document_failed(
         self,
         document_id: int,
@@ -332,6 +355,7 @@ class DocumentService:
     ) -> Document:
         document = self.get_document(document_id)
         document.status = DOCUMENT_STATUS_FAILED
+        document.processing_phase = "failed"
         document.processing_error = error_message
         document.chunks = []
 
@@ -345,6 +369,8 @@ class DocumentService:
     def retry_document(self, document_id: int) -> Document:
         document = self.get_document(document_id)
         document.status = DOCUMENT_STATUS_PENDING
+        document.processing_phase = "queued"
+        document.processing_progress = 0
         document.processing_error = None
         document.processing_attempts = 0
         document.chunks = []

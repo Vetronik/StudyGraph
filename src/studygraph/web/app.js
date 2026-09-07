@@ -627,6 +627,10 @@ function renderDocumentDetail(documentItem) {
   const rows = [
     ["Pages", formatNumber(documentItem.page_count)],
     ["Characters", formatNumber(documentItem.character_count)],
+    [
+      "Processing",
+      `${documentItem.processing_phase} (${documentItem.processing_progress}%)`,
+    ],
     ["File size", `${formatNumber(documentItem.file_size_bytes)} bytes`],
     ["Created", formatDate(documentItem.created_at)],
   ];

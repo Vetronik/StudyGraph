@@ -22,6 +22,7 @@ learning progress in one workspace. 🚀
 - Persistent chunk embeddings and pgvector semantic search
 - Persistent PDF storage with configurable storage directory
 - Asynchronous upload processing with `pending`, `processing`, `processed`, and `failed` states
+- Persistent processing phase and percentage progress for worker jobs
 - Database locking to prevent duplicate processing
 - Retry discovery for failed or interrupted processing jobs
 - Minimal browser interface for upload, search, inspection, and deletion

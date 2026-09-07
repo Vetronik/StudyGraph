@@ -569,6 +569,8 @@ def test_create_document_stores_valid_pdf(
         "character_count": 0,
         "extraction_method": "text",
         "status": "pending",
+        "processing_phase": "queued",
+        "processing_progress": 0,
         "processing_error": None,
         "text_preview": "",
         "created_at": "2026-08-15T12:00:00Z",
