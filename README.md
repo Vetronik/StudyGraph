@@ -296,6 +296,7 @@ Useful endpoints:
 | `GET` | `/documents` | List documents for the current development owner |
 | `GET` | `/documents/{id}` | Read document status and metadata |
 | `GET` | `/documents/{id}/chunks` | Read page-aware chunks |
+| `GET` | `/documents/{id}/topics` | Analyze topic candidates and explainable relations |
 | `GET` | `/search?query=...` | Full-text search over document chunks |
 | `GET` | `/semantic-search?query=...` | Semantic search over document chunks |
 | `GET` | `/hybrid-search?query=...` | Combined full-text and semantic search |

@@ -108,6 +108,7 @@ from studygraph.logging_config import configure_logging
 from studygraph.metrics import HttpMetrics
 from studygraph.rag_service import AnswerProviderError, RAGService
 from studygraph.retrieval_service import RetrievalService
+from studygraph.topic_service import analyze_document_topics
 from studygraph.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -245,6 +246,25 @@ class DocumentListResponse(BaseModel):
 
 class DocumentChunkListResponse(BaseModel):
     items: list[DocumentChunkResponse]
+
+
+class TopicCandidateResponse(BaseModel):
+    name: str
+    confidence: float
+    evidence: str
+
+
+class TopicRelationResponse(BaseModel):
+    source: str
+    target: str
+    evidence: str
+
+
+class TopicAnalysisResponse(BaseModel):
+    document_title: str | None
+    metadata_lines: list[str]
+    topics: list[TopicCandidateResponse]
+    relations: list[TopicRelationResponse]
 
 
 class SearchResultResponse(BaseModel):
@@ -1342,6 +1362,54 @@ def get_document(
         ) from error
 
     return _build_document_response(document)
+
+
+@app.get(
+    "/documents/{document_id}/topics",
+    response_model=TopicAnalysisResponse,
+    status_code=status.HTTP_200_OK,
+)
+def analyze_topics(
+    document_id: int,
+    document_service: Annotated[DocumentService, Depends(get_document_service)],
+) -> TopicAnalysisResponse:
+    try:
+        document = document_service.get_document(document_id)
+    except DocumentNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with id {document_id} was not found.",
+        ) from error
+    except DocumentReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not load document for topic analysis.",
+        ) from error
+
+    analysis = analyze_document_topics(
+        filename=document.filename,
+        text=document.extracted_text,
+    )
+    return TopicAnalysisResponse(
+        document_title=analysis.document_title,
+        metadata_lines=analysis.metadata_lines,
+        topics=[
+            TopicCandidateResponse(
+                name=topic.name,
+                confidence=topic.confidence,
+                evidence=topic.evidence,
+            )
+            for topic in analysis.topics
+        ],
+        relations=[
+            TopicRelationResponse(
+                source=relation.source,
+                target=relation.target,
+                evidence=relation.evidence,
+            )
+            for relation in analysis.relations
+        ],
+    )
 
 
 @app.get(
