@@ -32,6 +32,7 @@ def analyze_document_topics(*, filename: str, text: str) -> TopicAnalysis:
 
     metadata_lines: list[str] = []
     topic_candidates: list[TopicCandidate] = []
+    topic_positions: list[tuple[TopicCandidate, int]] = []
     seen_topics: set[str] = set()
     for index, line in enumerate(lines):
         if _is_metadata_line(line) or index == title_index:
@@ -43,24 +44,31 @@ def analyze_document_topics(*, filename: str, text: str) -> TopicAnalysis:
         if key in seen_topics:
             continue
         seen_topics.add(key)
-        topic_candidates.append(
-            TopicCandidate(
-                name=line,
-                confidence=0.9 if _looks_like_heading(line) else 0.7,
-                evidence="heading-like line in extracted lecture content",
-            )
+        candidate = TopicCandidate(
+            name=line,
+            confidence=0.9 if _looks_like_heading(line) else 0.7,
+            evidence="heading-like line in extracted lecture content",
         )
+        topic_candidates.append(candidate)
+        topic_positions.append((candidate, index))
 
     relations = [
         TopicRelation(
             source=left.name,
             target=right.name,
-            evidence="topics occur in the same document",
+            evidence="nearby topic headings or shared terminology",
         )
-        for index, left in enumerate(topic_candidates)
-        for right in topic_candidates[index + 1 :]
-        if _topics_are_related(left.name, right.name)
-    ]
+        for index, (left, left_position) in enumerate(topic_positions)
+        for right_index, (right, right_position) in enumerate(
+            topic_positions[index + 1 :], start=index + 1
+        )
+        if _topics_are_related(
+            left.name,
+            right.name,
+            line_distance=right_position - left_position,
+            topic_distance=right_index - index,
+        )
+    ][:100]
     return TopicAnalysis(
         document_title=document_title,
         metadata_lines=metadata_lines,
@@ -114,13 +122,19 @@ def _looks_like_heading(line: str) -> bool:
     return line.isupper() or len(line.split()) <= 6
 
 
-def _topics_are_related(left: str, right: str) -> bool:
+def _topics_are_related(
+    left: str,
+    right: str,
+    *,
+    line_distance: int,
+    topic_distance: int,
+) -> bool:
     left_terms = set(_fold(left).split())
     right_terms = set(_fold(right).split())
     return (
-        bool(left_terms & right_terms)
-        or len(left_terms) == 1
-        or len(right_terms) == 1
+        line_distance <= 3
+        or topic_distance <= 2
+        or bool(left_terms & right_terms)
     )
 
 
