@@ -25,6 +25,11 @@ class ExtractedPdfDocument:
     extraction_method: str = "text"
 
 
+def normalize_extracted_text(text: str) -> str:
+    """Remove control characters that PostgreSQL cannot store in text fields."""
+    return text.replace("\x00", "")
+
+
 def extract_pdf_document(pdf_path: Path) -> ExtractedPdfDocument:
     if not pdf_path.exists():
         raise PdfTextExtractionError(f"File does not exist: {pdf_path}")
@@ -45,7 +50,7 @@ def extract_pdf_document(pdf_path: Path) -> ExtractedPdfDocument:
 
     for page_number, page in enumerate(reader.pages, start=1):
         try:
-            page_text = page.extract_text() or ""
+            page_text = normalize_extracted_text(page.extract_text() or "")
         except Exception as error:
             raise PdfTextExtractionError(
                 f"Could not extract text from page {page_number}: {error}"
@@ -107,10 +112,10 @@ def _extract_text_with_ocr(
                     (pixmap.width, pixmap.height),
                     pixmap.samples,
                 )
-                page_text = pytesseract.image_to_string(
+                page_text = normalize_extracted_text(pytesseract.image_to_string(
                     image,
                     lang=get_ocr_language(),
-                ).strip()
+                )).strip()
                 if page_text:
                     ocr_pages.append(
                         ExtractedPdfPage(page_number=page_index, text=page_text)

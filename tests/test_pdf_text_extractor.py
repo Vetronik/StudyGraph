@@ -7,7 +7,12 @@ from studygraph.pdf_text_extractor import (
     PdfTextExtractionError,
     extract_pdf_document,
     extract_text_from_pdf,
+    normalize_extracted_text,
 )
+
+
+def test_normalize_extracted_text_removes_postgresql_incompatible_nuls() -> None:
+    assert normalize_extracted_text("Graph\x00en und Daten") == "Graphen und Daten"
 
 
 def test_extract_text_from_pdf_raises_for_missing_file(tmp_path: Path) -> None:
