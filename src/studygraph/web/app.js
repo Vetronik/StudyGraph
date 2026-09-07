@@ -236,27 +236,47 @@ async function refreshWorkspace() {
 }
 
 async function refreshDocuments() {
+  elements.documentList.replaceChildren(
+    createTextElement("div", "empty-state loading-state", "Loading documents…"),
+  );
   const collectionQuery = state.selectedCollectionId === null
     ? ""
     : `&collection_id=${state.selectedCollectionId}`;
-  const documentList = await requestJson(`/documents?limit=100${collectionQuery}`);
-  state.documents = documentList.items;
-  elements.documentCount.textContent = `${formatNumber(documentList.total)} stored`;
-  renderDocuments();
+  try {
+    const documentList = await requestJson(`/documents?limit=100${collectionQuery}`);
+    state.documents = documentList.items;
+    elements.documentCount.textContent = `${formatNumber(documentList.total)} stored`;
+    renderDocuments();
 
-  if (
-    state.selectedDocumentId !== null &&
-    !state.documents.some((documentItem) => documentItem.id === state.selectedDocumentId)
-  ) {
-    clearSelection();
+    if (
+      state.selectedDocumentId !== null &&
+      !state.documents.some((documentItem) => documentItem.id === state.selectedDocumentId)
+    ) {
+      clearSelection();
+    }
+  } catch (error) {
+    elements.documentList.replaceChildren(
+      createTextElement("div", "empty-state inline-error", getErrorMessage(error)),
+    );
+    throw error;
   }
 }
 
 async function refreshCollections() {
-  const collections = await requestJson("/collections");
-  state.collections = collections;
-  elements.collectionCount.textContent = `${formatNumber(collections.length)} saved`;
-  renderCollections();
+  elements.collectionList.replaceChildren(
+    createTextElement("div", "empty-state loading-state", "Loading collections…"),
+  );
+  try {
+    const collections = await requestJson("/collections");
+    state.collections = collections;
+    elements.collectionCount.textContent = `${formatNumber(collections.length)} saved`;
+    renderCollections();
+  } catch (error) {
+    elements.collectionList.replaceChildren(
+      createTextElement("div", "empty-state inline-error", getErrorMessage(error)),
+    );
+    throw error;
+  }
 }
 
 function renderCollections() {
@@ -437,17 +457,29 @@ async function selectDocument(documentId) {
   state.selectedDocumentId = documentId;
   elements.deleteButton.disabled = false;
   renderDocuments();
+  elements.documentDetail.className = "document-detail empty-state loading-state";
+  elements.documentDetail.textContent = "Loading document…";
+  elements.chunkList.replaceChildren(
+    createTextElement("div", "empty-state loading-state", "Loading document content…"),
+  );
 
-  const [documentItem, chunkList, progress] = await Promise.all([
-    requestJson(`/documents/${documentId}`),
-    requestJson(`/documents/${documentId}/chunks`),
-    requestJson(`/documents/${documentId}/progress`),
-  ]);
+  try {
+    const [documentItem, chunkList, progress] = await Promise.all([
+      requestJson(`/documents/${documentId}`),
+      requestJson(`/documents/${documentId}/chunks`),
+      requestJson(`/documents/${documentId}/progress`),
+    ]);
 
-  renderDocumentDetail(documentItem);
-  renderChunks(chunkList.items);
-  renderProgress(progress);
-  renderCollections();
+    renderDocumentDetail(documentItem);
+    renderChunks(chunkList.items);
+    renderProgress(progress);
+    renderCollections();
+  } catch (error) {
+    elements.documentDetail.className = "document-detail empty-state inline-error";
+    elements.documentDetail.textContent = getErrorMessage(error);
+    elements.chunkList.replaceChildren();
+    showNotice(getErrorMessage(error), "error");
+  }
 }
 
 function renderProgress(progress) {

@@ -171,6 +171,14 @@ h2 {
   font-size: 13px;
 }
 
+.loading-state {
+  opacity: 0.7;
+}
+
+.inline-error {
+  color: var(--red);
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(280px, 0.8fr) minmax(420px, 1.4fr);
