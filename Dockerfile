@@ -15,6 +15,7 @@ RUN python -m pip install --no-cache-dir .
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app/src \
     STUDYGRAPH_DOCUMENT_STORAGE_DIR=/app/data/documents
 
 RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin studygraph \
