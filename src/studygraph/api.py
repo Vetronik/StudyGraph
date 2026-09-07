@@ -960,6 +960,10 @@ async def create_document(
             max_bytes=get_max_upload_bytes(),
         )
         _validate_pdf_header(saved_upload.path)
+        if document_service.has_content_hash(saved_upload.content_hash):
+            raise DocumentDuplicateError(
+                "Document already exists for this owner."
+            )
         persistent_path = _persist_upload(saved_upload)
         document = document_service.create_pending_document(
             filename=filename,

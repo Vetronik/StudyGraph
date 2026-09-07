@@ -79,6 +79,8 @@ class SemanticSearchResultList:
 class DocumentRepositoryProtocol(Protocol):
     def add(self, document: Document) -> Document: ...
 
+    def has_content_hash(self, content_hash: str, *, owner_id: str) -> bool: ...
+
     def update(self, document: Document) -> Document: ...
 
     def delete(self, document: Document) -> None: ...
@@ -230,6 +232,17 @@ class DocumentService:
             if isinstance(error, DocumentDuplicateError):
                 raise error
             raise DocumentStorageError("Could not create document.") from error
+
+    def has_content_hash(self, content_hash: str) -> bool:
+        try:
+            return self._repository.has_content_hash(
+                content_hash,
+                owner_id=self._owner_id,
+            )
+        except DocumentRepositoryError as error:
+            raise DocumentStorageError(
+                "Could not check for duplicate document."
+            ) from error
 
     def create_document(
         self,

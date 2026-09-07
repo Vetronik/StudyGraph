@@ -97,6 +97,13 @@ class InMemoryDocumentRepository:
         self._next_id += 1
         return document
 
+    def has_content_hash(self, content_hash: str, *, owner_id: str) -> bool:
+        return any(
+            existing.owner_id == owner_id
+            and existing.content_hash == content_hash
+            for existing in self._documents.values()
+        )
+
     def update(self, document: Document) -> Document:
         self._assign_chunk_metadata(document)
         return document

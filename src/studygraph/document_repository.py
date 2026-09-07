@@ -153,6 +153,18 @@ class DocumentRepository:
         except SQLAlchemyError as error:
             raise DocumentRepositoryError("Could not load document.") from error
 
+    def has_content_hash(self, content_hash: str, *, owner_id: str) -> bool:
+        statement = select(Document.id).where(
+            Document.owner_id == owner_id,
+            Document.content_hash == content_hash,
+        )
+        try:
+            return self._session.scalar(statement) is not None
+        except SQLAlchemyError as error:
+            raise DocumentRepositoryError(
+                "Could not check for duplicate document."
+            ) from error
+
     def list_pending(self, *, limit: int = 20) -> list[Document]:
         statement = (
             select(Document)
