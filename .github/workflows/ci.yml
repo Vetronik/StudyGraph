@@ -55,7 +55,26 @@ jobs:
           STUDYGRAPH_AUTH_SECRET: ci-secret-for-compose-validation-only-32
           STUDYGRAPH_EMBEDDING_MODEL: ci-embedding-model
           STUDYGRAPH_EMBEDDING_API_KEY: ci-embedding-key
+          STUDYGRAPH_DOMAIN: studygraph.example.com
         run: docker compose -f docker-compose.yml -f docker-compose.secure.yml config --quiet
+
+      - name: Validate production proxy configuration
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password_for_validation
+          POSTGRES_DB: ci_studygraph
+          STUDYGRAPH_AUTH_SECRET: ci-secret-for-compose-validation-only-32
+          STUDYGRAPH_EMBEDDING_MODEL: ci-embedding-model
+          STUDYGRAPH_EMBEDDING_API_KEY: ci-embedding-key
+          STUDYGRAPH_DOMAIN: studygraph.example.com
+        run: docker compose -f docker-compose.yml -f docker-compose.secure.yml -f docker-compose.production.yml config --quiet
+
+      - name: Validate Caddy configuration
+        run: >-
+          docker run --rm
+          -e STUDYGRAPH_DOMAIN=studygraph.example.com
+          -v "${{ github.workspace }}/deploy/Caddyfile:/etc/caddy/Caddyfile:ro"
+          caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
       - name: Run tests
         run: python -m pytest

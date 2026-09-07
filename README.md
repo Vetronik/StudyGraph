@@ -170,6 +170,23 @@ $env:STUDYGRAPH_EMBEDDING_API_KEY = "replace-with-an-embedding-provider-key"
 docker compose -f docker-compose.yml -f docker-compose.secure.yml up --build -d
 ```
 
+For a public deployment with automatic HTTPS, point the domain's DNS records
+to the host and use the production proxy override. Caddy obtains and renews
+the certificate automatically:
+
+```powershell
+$env:STUDYGRAPH_DOMAIN = "studygraph.example.com"
+docker compose `
+  -f docker-compose.yml `
+  -f docker-compose.secure.yml `
+  -f docker-compose.production.yml `
+  up --build -d
+```
+
+The production override publishes only ports 80/443 through Caddy; the API
+itself remains reachable only inside the Compose network. Use a real domain,
+open both firewall ports, and persist the Caddy volumes for certificate data.
+
 To validate the merged Compose configuration without starting containers, set
 the same required variables to non-production values and run:
 
