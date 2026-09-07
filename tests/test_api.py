@@ -34,7 +34,12 @@ from studygraph.config import (
     get_max_document_pages,
 )
 from studygraph.database import get_session
-from studygraph.document_model import Document, DocumentChunk, LearningProgress
+from studygraph.document_model import (
+    Collection,
+    Document,
+    DocumentChunk,
+    LearningProgress,
+)
 from studygraph.document_processing import (
     DocumentProcessingFailed,
     DocumentProcessingLimits,
@@ -178,6 +183,7 @@ class InMemoryDocumentRepository:
         query: str,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> tuple[list[DocumentChunk], int]:
         normalized_query = query.lower()
         chunks: list[DocumentChunk] = []
@@ -190,6 +196,10 @@ class InMemoryDocumentRepository:
 
         for document in documents:
             if document.owner_id != owner_id:
+                continue
+            if collection_id is not None and not any(
+                collection.id == collection_id for collection in document.collections
+            ):
                 continue
 
             for chunk in sorted(document.chunks, key=lambda item: item.position):
@@ -208,12 +218,20 @@ class InMemoryDocumentRepository:
         query: str,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> tuple[list[DocumentChunk], int]:
         query_vector = DeterministicHashEmbeddingProvider().embed_texts([query])[0]
         chunks = [
             chunk
             for document in self._documents.values()
             if document.owner_id == owner_id
+            and (
+                collection_id is None
+                or any(
+                    collection.id == collection_id
+                    for collection in document.collections
+                )
+            )
             for chunk in document.chunks
             if chunk.embedding is not None
         ]
@@ -1090,6 +1108,48 @@ def test_semantic_search_returns_embedded_chunks(
     assert response.json()["items"][0]["document_filename"] == "calculus.pdf"
 
 
+def test_search_document_chunks_can_be_scoped_to_collection(
+    client: TestClient,
+    document_repository: InMemoryDocumentRepository,
+    tmp_path: Path,
+    write_pdf_with_text: Callable[[Path, str], None],
+) -> None:
+    calculus_pdf_path = tmp_path / "calculus.pdf"
+    history_pdf_path = tmp_path / "history.pdf"
+    write_pdf_with_text(calculus_pdf_path, "Chain rule and derivatives")
+    write_pdf_with_text(history_pdf_path, "Roman empire and derivatives")
+
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "calculus.pdf",
+                calculus_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+    client.post(
+        "/documents",
+        files={
+            "file": (
+                "history.pdf",
+                history_pdf_path.read_bytes(),
+                "application/pdf",
+            )
+        },
+    )
+    collection = Collection(id=41, owner_id=DEFAULT_OWNER_ID, name="Calculus")
+    document_repository._documents[1].collections.append(collection)
+
+    response = client.get("/search?query=derivatives&collection_id=41")
+
+    assert response.status_code == 200
+    assert [item["document_filename"] for item in response.json()["items"]] == [
+        "calculus.pdf"
+    ]
+
+
 def test_hybrid_search_combines_full_text_and_semantic_results(
     client: TestClient,
     tmp_path: Path,
@@ -1174,7 +1234,13 @@ def test_ask_rate_limit_protects_answer_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class FakeRAGService:
-        def answer(self, *, query: str, max_chunks: int) -> SimpleNamespace:
+        def answer(
+            self,
+            *,
+            query: str,
+            max_chunks: int,
+            collection_id: int | None = None,
+        ) -> SimpleNamespace:
             return SimpleNamespace(query=query, answer="ok", sources=[])
 
     monkeypatch.setenv("STUDYGRAPH_ANSWER_MAX_REQUESTS", "1")

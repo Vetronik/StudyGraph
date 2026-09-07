@@ -51,6 +51,7 @@ class FailingDocumentRepository:
         query: str,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> tuple[list[DocumentChunk], int]:
         return [], 0
 

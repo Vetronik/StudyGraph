@@ -302,6 +302,7 @@ class DocumentRepository:
         query: str,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> tuple[list[DocumentChunk], int]:
         search_query = func.websearch_to_tsquery("simple", query)
         chunk_search_vector = func.to_tsvector("simple", DocumentChunk.text)
@@ -337,6 +338,16 @@ class DocumentRepository:
             .offset(offset)
         )
 
+        if collection_id is not None:
+            collection_filter = Document.collections.any(
+                and_(
+                    Collection.id == collection_id,
+                    Collection.owner_id == owner_id,
+                )
+            )
+            total_statement = total_statement.where(collection_filter)
+            chunks_statement = chunks_statement.where(collection_filter)
+
         try:
             total = self._session.scalar(total_statement) or 0
             chunks = list(self._session.scalars(chunks_statement).all())
@@ -352,6 +363,7 @@ class DocumentRepository:
         query: str,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> tuple[list[DocumentChunk], int]:
         query_embedding = self._embedding_provider.embed_texts([query])[0]
         distance = DocumentChunk.embedding.op("<=>")(
@@ -375,6 +387,16 @@ class DocumentRepository:
             .limit(limit)
             .offset(offset)
         )
+
+        if collection_id is not None:
+            collection_filter = Document.collections.any(
+                and_(
+                    Collection.id == collection_id,
+                    Collection.owner_id == owner_id,
+                )
+            )
+            total_statement = total_statement.where(collection_filter)
+            chunks_statement = chunks_statement.where(collection_filter)
 
         try:
             total = self._session.scalar(total_statement) or 0

@@ -164,10 +164,17 @@ class RAGService:
         self._retrieval_service = retrieval_service
         self._answer_provider = answer_provider or get_answer_provider()
 
-    def answer(self, *, query: str, max_chunks: int) -> RAGAnswer:
+    def answer(
+        self,
+        *,
+        query: str,
+        max_chunks: int,
+        collection_id: int | None = None,
+    ) -> RAGAnswer:
         context = self._retrieval_service.build_context(
             query=query,
             max_chunks=max_chunks,
+            collection_id=collection_id,
         )
         return RAGAnswer(
             query=context.query,

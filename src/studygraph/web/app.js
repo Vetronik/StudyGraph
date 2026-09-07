@@ -679,8 +679,11 @@ async function handleSearch(event) {
   }
 
   try {
+    const collectionQuery = state.selectedCollectionId === null
+      ? ""
+      : `&collection_id=${state.selectedCollectionId}`;
     const searchResult = await requestJson(
-      `/search?query=${encodeURIComponent(query)}&limit=20`
+      `/search?query=${encodeURIComponent(query)}&limit=20${collectionQuery}`
     );
     elements.searchCount.textContent = `${formatNumber(searchResult.total)} results`;
     renderSearchResults(searchResult.items);
@@ -703,7 +706,13 @@ async function handleAsk(event) {
     const result = await requestJson("/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, max_chunks: 5 }),
+      body: JSON.stringify({
+        query,
+        max_chunks: 5,
+        ...(state.selectedCollectionId === null
+          ? {}
+          : { collection_id: state.selectedCollectionId }),
+      }),
     });
     const answer = createTextElement("p", "learning-text", result.answer);
     const sources = createTextElement(

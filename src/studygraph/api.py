@@ -261,11 +261,13 @@ class SearchResponse(BaseModel):
 class RetrievalContextRequest(BaseModel):
     query: str = Field(min_length=1, max_length=200)
     max_chunks: int = Field(default=5, ge=1, le=20)
+    collection_id: int | None = Field(default=None, ge=1)
 
 
 class RAGAnswerRequest(BaseModel):
     query: str = Field(min_length=1, max_length=200)
     max_chunks: int = Field(default=5, ge=1, le=20)
+    collection_id: int | None = Field(default=None, ge=1)
 
 
 class RetrievalSourceResponse(BaseModel):
@@ -638,12 +640,14 @@ def hybrid_search_document_chunks(
     query: Annotated[str, Query(min_length=1, max_length=200)],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
+    collection_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> SearchResponse:
     try:
         search_results = document_service.hybrid_search_chunks(
             query=query,
             limit=limit,
             offset=offset,
+            collection_id=collection_id,
         )
     except DocumentSearchQueryError as error:
         raise HTTPException(
@@ -1011,12 +1015,14 @@ def search_document_chunks(
     query: Annotated[str, Query(min_length=1, max_length=200)],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
+    collection_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> SearchResponse:
     try:
         search_results = document_service.search_chunks(
             query=query,
             limit=limit,
             offset=offset,
+            collection_id=collection_id,
         )
     except DocumentSearchQueryError as error:
         raise HTTPException(
@@ -1054,12 +1060,14 @@ def semantic_search_document_chunks(
     query: Annotated[str, Query(min_length=1, max_length=200)],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
+    collection_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> SearchResponse:
     try:
         search_results = document_service.semantic_search_chunks(
             query=query,
             limit=limit,
             offset=offset,
+            collection_id=collection_id,
         )
     except DocumentSearchQueryError as error:
         raise HTTPException(
@@ -1097,6 +1105,7 @@ def build_rag_context(
         retrieval_context = retrieval_service.build_context(
             query=request.query,
             max_chunks=request.max_chunks,
+            collection_id=request.collection_id,
         )
     except DocumentSearchQueryError as error:
         raise HTTPException(
@@ -1157,6 +1166,7 @@ def ask_documents(
         result = rag_service.answer(
             query=request.query,
             max_chunks=request.max_chunks,
+            collection_id=request.collection_id,
         )
     except DocumentSearchQueryError as error:
         raise HTTPException(

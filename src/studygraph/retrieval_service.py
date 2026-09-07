@@ -34,6 +34,7 @@ class ChunkSearchProtocol(Protocol):
         query: str,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> DocumentSearchResultList: ...
 
 
@@ -41,11 +42,18 @@ class RetrievalService:
     def __init__(self, chunk_search: ChunkSearchProtocol) -> None:
         self._chunk_search = chunk_search
 
-    def build_context(self, *, query: str, max_chunks: int) -> RetrievalContext:
+    def build_context(
+        self,
+        *,
+        query: str,
+        max_chunks: int,
+        collection_id: int | None = None,
+    ) -> RetrievalContext:
         search_results = self._chunk_search.search_chunks(
             query=query,
             limit=max_chunks,
             offset=0,
+            collection_id=collection_id,
         )
         sources = [
             self._build_source(source_number, chunk)

@@ -138,6 +138,7 @@ class DocumentRepositoryProtocol(Protocol):
         query: str,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> tuple[list[DocumentChunk], int]: ...
 
     def semantic_search_chunks(
@@ -147,6 +148,7 @@ class DocumentRepositoryProtocol(Protocol):
         query: str,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> tuple[list[DocumentChunk], int]: ...
 
 
@@ -476,6 +478,7 @@ class DocumentService:
         query: str,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> DocumentSearchResultList:
         normalized_query = query.strip()
 
@@ -490,6 +493,7 @@ class DocumentService:
                 query=normalized_query,
                 limit=limit,
                 offset=offset,
+                collection_id=collection_id,
             )
         except DocumentRepositoryError as error:
             raise DocumentReadError("Could not search document chunks.") from error
@@ -508,6 +512,7 @@ class DocumentService:
         query: str,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> SemanticSearchResultList:
         normalized_query = query.strip()
         if not normalized_query:
@@ -521,6 +526,7 @@ class DocumentService:
                 query=normalized_query,
                 limit=limit,
                 offset=offset,
+                collection_id=collection_id,
             )
         except DocumentRepositoryError as error:
             raise DocumentReadError("Could not search document embeddings.") from error
@@ -539,17 +545,20 @@ class DocumentService:
         query: str,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> DocumentSearchResultList:
         candidate_limit = min(100, limit + offset + 20)
         full_text_results = self.search_chunks(
             query=query,
             limit=candidate_limit,
             offset=0,
+            collection_id=collection_id,
         )
         semantic_results = self.semantic_search_chunks(
             query=query,
             limit=candidate_limit,
             offset=0,
+            collection_id=collection_id,
         )
 
         scores: dict[int, float] = {}
