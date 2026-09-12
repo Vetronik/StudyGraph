@@ -27,7 +27,7 @@ test = [
     "pytest>=9.1.1",
 ]
 dev = [
-    "ruff>=0.16.5",
+    "ruff>=0.16.6",
 ]
 
 [project.scripts]
