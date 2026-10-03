@@ -18,7 +18,7 @@ dependencies = [
     "pytesseract>=0.3.13",
     "python-multipart>=0.0.32",
     "sqlalchemy>=2.0.52",
-    "uvicorn>=0.52.4",
+    "uvicorn>=0.54.0",
 ]
 
 [project.optional-dependencies]
